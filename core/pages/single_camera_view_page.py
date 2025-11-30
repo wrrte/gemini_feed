@@ -218,7 +218,7 @@ class SingleCameraViewPage(InterfaceWindow):
         self.update_count += 1
         camera = self.camera_manager.get_camera(self.camera_id)
 
-        if camera is None or camera.is_locked():
+        if camera is None:
             self.destroy()
             return
 

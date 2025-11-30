@@ -52,6 +52,12 @@ def show_toast(self, message: str, duration_ms: int = 2500):
     toast = ctk.CTkToplevel(self)
     toast.overrideredirect(True)
     toast.attributes("-topmost", True)
+
+    # Hide toast in test environment (when root window is withdrawn)
+    # This prevents toast from appearing during unit tests
+    if hasattr(self, "winfo_viewable") and not self.winfo_viewable():
+        toast.withdraw()
+
     pad = 12
 
     # Create frame with rounded corners

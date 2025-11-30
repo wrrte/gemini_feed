@@ -5,21 +5,11 @@ All Sensors Example (CustomTkinter Version - Refactored for Single Dictionary)
 Updated to use 'Sensors' dictionary and 'SensorType' for identification.
 """
 
-import sys
 import tkinter as tk
-from pathlib import Path
 from tkinter import messagebox
 
 import customtkinter as ctk
 from ratelimit import RateLimitException, limits
-
-# Set manager package path
-# -----------------------------------------------------------
-if __name__ == "__main__":
-    current_file = Path(__file__).resolve()
-    project_root = current_file.parents[2]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
 
 from core.pages.interface_page import InterfaceWindow
 # Import to check SensorType (adjust path according to project structure)
@@ -468,32 +458,3 @@ class SensorsManagementPage(InterfaceWindow):
                 "Cooldown Active",
                 "Please wait 1 second before clicking again.",
             )
-
-
-def main(master=None, page_id="sensor_test_window"):
-    print("=" * 60)
-    print("SafeHome Sensor Test - Unified sensor_manager Version")
-    print("=" * 60)
-
-    # Instantiate sensor_manager
-    SC = SensorManager()
-
-    # Pass sensor_manager to the App
-    app = SensorsManagementPage(
-        sensor_manager=SC, master=master, page_id=page_id
-    )
-
-    # Calculate ID range (filtering by type)
-
-    print("✅ GUI initialized successfully! Starting main loop...")
-    print("=" * 60)
-
-    def on_closing():
-        app.destroy()
-
-    app.protocol("WM_DELETE_WINDOW", on_closing)
-    app.mainloop()
-
-
-if __name__ == "__main__":
-    main()
