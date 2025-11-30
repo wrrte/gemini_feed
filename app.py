@@ -7,10 +7,9 @@ from core.system import System
 class App:
     def __init__(self, args):
         self.args = args
-        # [수정] auto_login 인자를 System에 전달
+        # [edit] pass auto_login to System
         self.system = System(
-            reset_database=self.args.reset_db,
-            auto_login=self.args.auto_login
+            reset_database=self.args.reset_db, auto_login=self.args.auto_login
         )
 
     def run(self):
