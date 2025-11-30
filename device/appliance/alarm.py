@@ -20,7 +20,7 @@ class Alarm(threading.Thread, InterfaceAlarm):
         self.y = 0
         self.ringing = False
         self._running = True
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.ring_start_time = None
 
         self.start()

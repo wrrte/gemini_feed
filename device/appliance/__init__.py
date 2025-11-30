@@ -4,7 +4,7 @@ from device.appliance.camera import SafeHomeCamera
 
 def create_camera_from_schema(camera: CameraSchema) -> SafeHomeCamera:
     cam = SafeHomeCamera()
-    cam.id = camera.camera_id
+    cam.camera_id = camera.camera_id
     cam.location = (camera.coordinate_x, camera.coordinate_y)
     cam.pan = camera.pan
     cam.zoom_setting = camera.zoom_setting

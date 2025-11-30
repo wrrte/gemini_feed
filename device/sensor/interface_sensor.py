@@ -19,39 +19,39 @@ class InterfaceSensor(ABC):
     @abstractmethod
     def get_type(self):
         """Get the sensor type."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def intrude(self):
         """Simulate motion detection."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def release(self):
         """Clear motion detection."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def get_id(self):
         """Alias for getID."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def read(self):
         """Read the sensor state."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def arm(self):
         """Enable the sensor."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def disarm(self):
         """Disable the sensor."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def is_armed(self):
         """Check if the sensor is armed."""
-        pass
+        pass  # pragma: no cover
