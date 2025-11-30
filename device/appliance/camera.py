@@ -23,21 +23,21 @@ class SafeHomeCamera:
         has_password: bool = False,
         password: str | None = None,
         enabled: bool = False,
-        **kwargs,  # created_at, updated_at 등 추가 필드 무시
+        **kwargs,  # ignore extra fields such as created_at, updated_at
     ):
         self.camera_id = camera_id
         self.location = (coordinate_x, coordinate_y)
         self.pan = pan
         self.zoom_setting = zoom_setting
         self._has_password = has_password
-        self._locked = has_password  # 비밀번호가 있으면 잠금 상태
+        self._locked = has_password  # Locked if there is a password
         self.password = password
         self.enabled = enabled
         self.image = None
 
         self.font = ImageFont.load_default()
 
-        # camera_id가 설정되어 있으면 이미지 로드
+        # Load image if camera_id is set
         if self.camera_id > 0:
             self._load_img()
 

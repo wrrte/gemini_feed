@@ -35,7 +35,7 @@ INSERT INTO safety_zones (zone_id, zone_name, coordinate_x1, coordinate_x2, coor
   (3, 'Living Room Top', 310, 500, 0, 120),
   (4, 'Living Room Bottom', 300, 500, 170, 312);
 
--- [추가] SafeHome Modes 기본 데이터 삽입
+-- [Added] SafeHome Modes initial data
 INSERT INTO safehome_modes (mode_id, mode_name) VALUES
   (1, 'Away'),
   (2, 'Home'),
