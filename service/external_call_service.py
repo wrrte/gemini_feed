@@ -26,6 +26,8 @@ class ExternalCallService:
         Returns:
             bool: True if call was initiated successfully
         """
-        # NOTE: Actual call logic is not implemented yet
+        # NOTE: Call is simulated with a print statement
+        if (phone_number is None) or (phone_number == ""):
+            return False
         print(f"Calling {phone_number}...")
         return True
