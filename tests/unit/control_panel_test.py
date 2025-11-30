@@ -1,6 +1,12 @@
-import os
+"""
+Unit tests for control_panel.py
+Tests ControlPanel class with real GUI
+"""
+
+import tkinter
 from unittest.mock import Mock, patch
 
+import customtkinter as ctk
 import pytest
 
 # isort: off
@@ -9,62 +15,108 @@ from constants import (
     FUNCTION_MODE_MESSAGE2,
     PANEL_DEFAULT_MESSAGE1,
 )
-# isort: on
 
+# isort: on
 from core.control_panel.control_panel import ControlPanel
 from core.control_panel.control_panel_state_manager import ControlPanelState
-from manager.configuration_manager import ConfigurationManager
-from manager.login_manager import LoginManager
-from manager.storage_manager import StorageManager
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-db_dir = os.path.abspath(os.path.join(current_dir, "../../database"))
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+
+def cancel_all_after(widget):
+    """Cancel all pending after callbacks recursively."""
+    try:
+        for after_id in widget.tk.eval("after info").split():
+            try:
+                widget.after_cancel(after_id)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+# =============================================================================
+# Fixtures
+# =============================================================================
 
 
 @pytest.fixture(autouse=True)
-def reset_singleton_storage_manager():
-    """
-    Reset the singleton instance of StorageManager before and after each test.
-    This prevents interference between tests.
-    """
-    # Setup: Reset instance
-    StorageManager._instance = None
-
+def ensure_tkinter_cleanup():
+    """Ensure Tkinter is properly cleaned up between tests."""
     yield
-
-    # Teardown: Clean up database connection and reset instance
-    if StorageManager._instance:
-        if hasattr(StorageManager._instance, "connection"):
-            if StorageManager._instance.connection:
-                StorageManager._instance.connection.close()
-
-    StorageManager._instance = None
-
-    # Delete test database file
-    test_db_path = os.path.join(db_dir, "safehome_test.db")
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
-
-
-@pytest.fixture
-def storage_manager():
-    """Create a StorageManager with test database."""
-    return StorageManager(db_file_name="safehome_test.db", reset_database=True)
-
-
-@pytest.fixture
-def login_manager(storage_manager):
-    """Create a LoginManager with test users."""
-    return LoginManager(storage_manager=storage_manager)
+    # After each test, reset tkinter state for isolation
+    try:
+        if hasattr(tkinter, "_default_root") and tkinter._default_root:
+            try:
+                # Destroy all children first
+                for widget in list(tkinter._default_root.winfo_children()):
+                    try:
+                        widget.destroy()
+                    except Exception:
+                        pass
+                # Destroy the root if it exists
+                if tkinter._default_root.winfo_exists():
+                    tkinter._default_root.destroy()
+            except Exception:
+                pass
+            tkinter._default_root = None
+    except Exception:
+        pass
 
 
 @pytest.fixture
-def configuration_manager(storage_manager):
-    """Create a ConfigurationManager."""
-    configuration_manager = ConfigurationManager(
-        storage_manager=storage_manager
-    )
-    return configuration_manager
+def mock_login_manager():
+    """Create mock LoginManager."""
+    manager = Mock()
+    manager.is_logged_in_panel = False
+    manager.current_user_id = None
+    manager.login_trials = 0
+    manager.login_panel = Mock(return_value=True)
+    manager.is_login_trials_exceeded = Mock(return_value=False)
+    return manager
+
+
+@pytest.fixture
+def mock_zone():
+    """Create mock SafetyZone."""
+    zone = Mock()
+    zone.is_armed = Mock(return_value=False)
+    return zone
+
+
+@pytest.fixture
+def mock_configuration_manager(mock_zone):
+    """Create mock ConfigurationManager."""
+    manager = Mock()
+    manager.safety_zones = {
+        1: mock_zone,
+        2: mock_zone,
+        3: mock_zone,
+        4: mock_zone,
+    }
+    manager.change_to_safehome_mode = Mock(return_value=True)
+    manager.arm_safety_zone = Mock(return_value=True)
+    manager.disarm_safety_zone = Mock(return_value=True)
+    return manager
+
+
+@pytest.fixture
+def mock_alarm_manager():
+    """Create mock AlarmManager."""
+    manager = Mock()
+    manager.is_ringing = Mock(return_value=False)
+    manager.stop_alarm = Mock()
+    return manager
+
+
+@pytest.fixture
+def mock_sensor_manager():
+    """Create mock SensorManager."""
+    manager = Mock()
+    manager.if_intrusion_detected = Mock(return_value=False)
+    return manager
 
 
 @pytest.fixture
@@ -79,49 +131,37 @@ def mock_callbacks():
 
 
 @pytest.fixture
-def control_panel(login_manager, configuration_manager, mock_callbacks):
-    """Create a ControlPanel instance for testing (Unit Test - UI Mocked)."""
-    # Mock ui.draw_page to skip UI creation
-    with patch("core.control_panel.control_panel_ui.ControlPanelUI.draw_page"):
+def control_panel(
+    mock_login_manager, mock_configuration_manager, mock_callbacks
+):
+    """Create a ControlPanel instance for testing with real GUI (hidden)."""
+    # Patch CTk.__init__ to immediately withdraw after creation
+    original_ctk_init = ctk.CTk.__init__
+
+    def patched_ctk_init(self, *args, **kwargs):
+        original_ctk_init(self, *args, **kwargs)
+        self.withdraw()
+
+    with patch.object(ctk.CTk, "__init__", patched_ctk_init):
         panel = ControlPanel(
             turn_system_on=mock_callbacks["turn_system_on"],
             turn_system_off=mock_callbacks["turn_system_off"],
             set_reset_database=mock_callbacks["set_reset_database"],
             external_call=mock_callbacks["external_call"],
-            login_manager=login_manager,
-            configuration_manager=configuration_manager,
+            login_manager=mock_login_manager,
+            configuration_manager=mock_configuration_manager,
         )
+        panel.update_idletasks()
 
-        # Mock only UI widget elements (not business logic methods)
-        panel.ui.display_number = Mock()
-        panel.ui.display_number.configure = Mock()
-        panel.ui.display_number.delete = Mock()
-        panel.ui.display_number.insert = Mock()
+    yield panel
 
-        panel.ui.display_away = Mock()
-        panel.ui.display_away.configure = Mock()
-
-        panel.ui.display_home = Mock()
-        panel.ui.display_home.configure = Mock()
-
-        panel.ui.display_not_ready = Mock()
-        panel.ui.display_not_ready.configure = Mock()
-
-        panel.ui.display_text = Mock()
-        panel.ui.display_text.delete = Mock()
-        panel.ui.display_text.insert = Mock()
-
-        panel.ui.led_armed = Mock()
-        panel.ui.led_armed.configure = Mock()
-
-        panel.ui.led_power = Mock()
-        panel.ui.led_power.configure = Mock()
-
-        # Mock Tkinter timing methods only
-        panel.after = Mock()
-        panel.after_cancel = Mock()
-
-        return panel
+    # Cleanup - cancel callbacks and destroy
+    try:
+        cancel_all_after(panel)
+        panel.withdraw()
+        panel.destroy()
+    except Exception:
+        pass
 
 
 # ============================================================================
@@ -269,7 +309,9 @@ def test_change_state_with_custom_messages(control_panel):
 
 def test_verify_login_master_success(control_panel):
     """Test verify login for master user."""
-    control_panel.login_manager.login_panel("master", "1234")
+    # Set mock login state directly
+    control_panel.login_manager.is_logged_in_panel = True
+    control_panel.login_manager.current_user_id = "master"
 
     assert control_panel._verify_login("master") is True
 
@@ -281,14 +323,16 @@ def test_verify_login_master_fail_not_logged_in(control_panel):
 
 def test_verify_login_master_fail_wrong_user(control_panel):
     """Test verify login fails when logged in as different user."""
-    control_panel.login_manager.login_panel("guest", None)
+    control_panel.login_manager.is_logged_in_panel = True
+    control_panel.login_manager.current_user_id = "guest"
 
     assert control_panel._verify_login("master") is False
 
 
 def test_check_authorization_master_success(control_panel):
     """Test check authorization for master user."""
-    control_panel.login_manager.login_panel("master", "1234")
+    control_panel.login_manager.is_logged_in_panel = True
+    control_panel.login_manager.current_user_id = "master"
 
     assert control_panel._check_authorization("master") is True
 
@@ -304,14 +348,16 @@ def test_check_authorization_master_fail(control_panel):
 
 def test_check_authorization_any_with_master(control_panel):
     """Test check authorization 'any' with master login."""
-    control_panel.login_manager.login_panel("master", "1234")
+    control_panel.login_manager.is_logged_in_panel = True
+    control_panel.login_manager.current_user_id = "master"
 
     assert control_panel._check_authorization("any") is True
 
 
 def test_check_authorization_any_with_guest(control_panel):
     """Test check authorization 'any' with guest login."""
-    control_panel.login_manager.login_panel("guest", None)
+    control_panel.login_manager.is_logged_in_panel = True
+    control_panel.login_manager.current_user_id = "guest"
 
     assert control_panel._check_authorization("any") is True
 
@@ -406,20 +452,6 @@ def test_navigate_with_empty_zones(control_panel):
 
 
 # ============================================================================
-# Zone Arm/Disarm Tests
-# ============================================================================
-
-
-def test_zone_arm_disarm_operations(control_panel):
-    """Test zone arm/disarm operations through configuration manager."""
-    # Zone operations are tested via configuration_manager
-    # This is an integration point test
-    zones = control_panel.configuration_manager.safety_zones
-
-    assert isinstance(zones, dict)
-
-
-# ============================================================================
 # Display Message Tests
 # ============================================================================
 
@@ -499,12 +531,14 @@ def test_handle_panel_login_success_master(control_panel):
     """Test successful panel login for master."""
     control_panel.input_handler.panel_id_input = "master"
     control_panel.input_handler.digit_input = [1, 2, 3, 4]
+    control_panel.login_manager.login_panel.return_value = True
 
-    with patch.object(control_panel, "after"):
-        result = control_panel.input_handler._handle_panel_login()
+    result = control_panel.input_handler._handle_panel_login()
 
     assert result is True
-    assert control_panel.login_manager.is_logged_in_panel is True
+    control_panel.login_manager.login_panel.assert_called_with(
+        "master", "1234"
+    )
     assert control_panel.input_handler.digit_input == []
 
 
@@ -512,11 +546,11 @@ def test_handle_panel_login_fail_wrong_password(control_panel):
     """Test failed panel login with wrong password."""
     control_panel.input_handler.panel_id_input = "master"
     control_panel.input_handler.digit_input = [0, 0, 0, 0]
+    control_panel.login_manager.login_panel.return_value = False
 
     result = control_panel.input_handler._handle_panel_login()
 
     assert result is False
-    assert control_panel.login_manager.is_logged_in_panel is False
     assert "Login failed" in control_panel.ui.short_message1
 
 
@@ -533,11 +567,11 @@ def test_handle_panel_login_fail_insufficient_digits(control_panel):
 def test_handle_panel_login_locks_after_max_trials(control_panel):
     """Test panel locks after maximum login trials."""
     control_panel.input_handler.panel_id_input = "master"
+    control_panel.login_manager.login_panel.return_value = False
+    control_panel.login_manager.is_login_trials_exceeded.return_value = True
 
-    # Try wrong password 3 times
-    for _ in range(3):
-        control_panel.input_handler.digit_input = [0, 0, 0, 0]
-        control_panel.input_handler._handle_panel_login()
+    control_panel.input_handler.digit_input = [0, 0, 0, 0]
+    control_panel.input_handler._handle_panel_login()
 
     assert control_panel.state_manager.panel_state == ControlPanelState.LOCKED
 
@@ -657,3 +691,553 @@ def test_panel_state_initialization(control_panel):
     assert control_panel.powered is False
     assert control_panel.input_handler.digit_input == []
     assert control_panel.input_handler.new_password_temp == ""
+
+
+# ============================================================================
+# set_managers Tests
+# ============================================================================
+
+
+def test_set_managers(control_panel, mock_alarm_manager, mock_sensor_manager):
+    """Test set_managers updates all manager references."""
+    new_login_manager = Mock()
+    new_config_manager = Mock()
+
+    control_panel.set_managers(
+        login_manager=new_login_manager,
+        configuration_manager=new_config_manager,
+        alarm_manager=mock_alarm_manager,
+        sensor_manager=mock_sensor_manager,
+    )
+
+    assert control_panel.login_manager == new_login_manager
+    assert control_panel.configuration_manager == new_config_manager
+    assert control_panel.alarm_manager == mock_alarm_manager
+    assert control_panel.sensor_manager == mock_sensor_manager
+
+
+def test_set_managers_without_optional(control_panel):
+    """Test set_managers without optional managers."""
+    new_login_manager = Mock()
+    new_config_manager = Mock()
+
+    control_panel.set_managers(
+        login_manager=new_login_manager,
+        configuration_manager=new_config_manager,
+    )
+
+    assert control_panel.login_manager == new_login_manager
+    assert control_panel.configuration_manager == new_config_manager
+    assert control_panel.alarm_manager is None
+    assert control_panel.sensor_manager is None
+
+
+# ============================================================================
+# start_count_down_for_external_call Tests
+# ============================================================================
+
+
+def test_start_count_down_for_external_call(control_panel):
+    """Test start_count_down_for_external_call calls state manager."""
+    with patch.object(
+        control_panel.state_manager, "start_count_down_for_external_call"
+    ) as mock_countdown:
+        control_panel.start_count_down_for_external_call()
+        mock_countdown.assert_called_once()
+
+
+# ============================================================================
+# _turn_panel_on Tests
+# ============================================================================
+
+
+def test_turn_panel_on_when_already_powered(control_panel):
+    """Test _turn_panel_on returns early when already powered."""
+    control_panel.powered = True
+
+    control_panel._turn_panel_on()
+
+    # turn_system_on callback should not be called
+    control_panel.turn_system_on.assert_not_called()
+
+
+def test_turn_panel_on_success(control_panel, mock_zone):
+    """Test _turn_panel_on successful startup."""
+    control_panel.powered = False
+    control_panel.turn_system_on.return_value = True
+
+    control_panel._turn_panel_on()
+    control_panel.update_idletasks()
+
+    assert control_panel.powered is True
+    control_panel.turn_system_on.assert_called_once()
+
+
+def test_turn_panel_on_failure(control_panel):
+    """Test _turn_panel_on when turn_system_on returns False."""
+    control_panel.powered = False
+    control_panel.turn_system_on.return_value = False
+
+    control_panel._turn_panel_on()
+    control_panel.update_idletasks()
+
+    assert control_panel.powered is False
+    # Check that failure message is displayed
+    assert "failed" in control_panel.ui.short_message1.lower()
+
+
+def test_turn_panel_on_exception(control_panel):
+    """Test _turn_panel_on when turn_system_on raises exception."""
+    control_panel.powered = False
+    control_panel.turn_system_on.side_effect = Exception("Test error")
+
+    control_panel._turn_panel_on()
+    control_panel.update_idletasks()
+
+    assert control_panel.powered is False
+    # Check that error message is displayed
+    assert "failed" in control_panel.ui.short_message1.lower()
+
+
+def test_turn_panel_on_sets_zone_number(control_panel, mock_zone):
+    """Test _turn_panel_on sets security zone number."""
+    control_panel.powered = False
+    control_panel.turn_system_on.return_value = True
+    control_panel.ui.security_zone_number = None
+
+    control_panel._turn_panel_on()
+    control_panel.update_idletasks()
+
+    # Should set zone number from configuration (first zone is 1)
+    assert control_panel.ui.security_zone_number == 1
+
+
+def test_turn_panel_on_sets_armed_led(control_panel, mock_zone):
+    """Test _turn_panel_on sets armed LED based on zone state."""
+    control_panel.powered = False
+    control_panel.turn_system_on.return_value = True
+    control_panel.ui.security_zone_number = 1
+    mock_zone.is_armed.return_value = True
+
+    control_panel._turn_panel_on()
+    control_panel.update_idletasks()
+
+    # LED state verified through zone.is_armed being called
+    mock_zone.is_armed.assert_called()
+
+
+# ============================================================================
+# sync_system_state_loop Tests
+# ============================================================================
+
+
+def test_sync_system_state_loop_when_not_powered(control_panel):
+    """Test sync_system_state_loop returns early when not powered."""
+    control_panel.powered = False
+
+    with patch.object(control_panel, "_sync_armed_led") as mock_sync:
+        control_panel.sync_system_state_loop()
+        mock_sync.assert_not_called()
+
+
+def test_sync_system_state_loop_when_powered(control_panel):
+    """Test sync_system_state_loop syncs state when powered."""
+    control_panel.powered = True
+
+    with (
+        patch.object(control_panel, "_sync_armed_led") as mock_sync_led,
+        patch.object(
+            control_panel, "_auto_stop_alarm_if_all_released"
+        ) as mock_auto_stop,
+        patch.object(control_panel, "after") as mock_after,
+    ):
+        control_panel.sync_system_state_loop()
+
+        mock_sync_led.assert_called_once()
+        mock_auto_stop.assert_called_once()
+        # Should schedule next sync
+        mock_after.assert_called()
+
+
+# ============================================================================
+# _sync_armed_led Tests
+# ============================================================================
+
+
+def test_sync_armed_led_with_zone(control_panel, mock_zone):
+    """Test _sync_armed_led updates LED based on zone state."""
+    control_panel.ui.security_zone_number = 1
+    mock_zone.is_armed.return_value = True
+
+    control_panel._sync_armed_led()
+
+    # Verify zone.is_armed was called to check state
+    mock_zone.is_armed.assert_called()
+
+
+def test_sync_armed_led_no_zone_selected(control_panel):
+    """Test _sync_armed_led does nothing when no zone selected."""
+    control_panel.ui.security_zone_number = None
+
+    # Should not raise any exception
+    control_panel._sync_armed_led()
+
+
+def test_sync_armed_led_no_config_manager(control_panel):
+    """Test _sync_armed_led does nothing when no configuration manager."""
+    control_panel.ui.security_zone_number = 1
+    control_panel.configuration_manager = None
+
+    # Should not raise any exception
+    control_panel._sync_armed_led()
+
+
+def test_sync_armed_led_zone_not_found(control_panel):
+    """Test _sync_armed_led does nothing when zone not found."""
+    control_panel.ui.security_zone_number = 999  # Non-existent zone
+
+    # Should not raise any exception
+    control_panel._sync_armed_led()
+
+
+# ============================================================================
+# _auto_stop_alarm_if_all_released Tests
+# ============================================================================
+
+
+def test_auto_stop_alarm_no_managers(control_panel):
+    """Test _auto_stop_alarm_if_all_released does nothing without managers."""
+    control_panel.alarm_manager = None
+    control_panel.sensor_manager = None
+
+    with patch.object(
+        control_panel.state_manager, "change_state_to"
+    ) as mock_change:
+        control_panel._auto_stop_alarm_if_all_released()
+        mock_change.assert_not_called()
+
+
+def test_auto_stop_alarm_no_alarm_manager(control_panel, mock_sensor_manager):
+    """Test _auto_stop_alarm does nothing without alarm manager."""
+    control_panel.alarm_manager = None
+    control_panel.sensor_manager = mock_sensor_manager
+
+    with patch.object(
+        control_panel.state_manager, "change_state_to"
+    ) as mock_change:
+        control_panel._auto_stop_alarm_if_all_released()
+        mock_change.assert_not_called()
+
+
+def test_auto_stop_alarm_no_sensor_manager(control_panel, mock_alarm_manager):
+    """Test _auto_stop_alarm does nothing without sensor manager."""
+    control_panel.alarm_manager = mock_alarm_manager
+    control_panel.sensor_manager = None
+
+    with patch.object(
+        control_panel.state_manager, "change_state_to"
+    ) as mock_change:
+        control_panel._auto_stop_alarm_if_all_released()
+        mock_change.assert_not_called()
+
+
+def test_auto_stop_alarm_when_not_ringing(
+    control_panel, mock_alarm_manager, mock_sensor_manager
+):
+    """Test _auto_stop_alarm does nothing when alarm not ringing."""
+    control_panel.alarm_manager = mock_alarm_manager
+    control_panel.sensor_manager = mock_sensor_manager
+    mock_alarm_manager.is_ringing.return_value = False
+
+    with patch.object(
+        control_panel.state_manager, "change_state_to"
+    ) as mock_change:
+        control_panel._auto_stop_alarm_if_all_released()
+        mock_change.assert_not_called()
+
+
+def test_auto_stop_alarm_when_intrusion_detected(
+    control_panel, mock_alarm_manager, mock_sensor_manager
+):
+    """Test _auto_stop_alarm does nothing when intrusion detected."""
+    control_panel.alarm_manager = mock_alarm_manager
+    control_panel.sensor_manager = mock_sensor_manager
+    mock_alarm_manager.is_ringing.return_value = True
+    mock_sensor_manager.if_intrusion_detected.return_value = True
+
+    with patch.object(
+        control_panel.state_manager, "change_state_to"
+    ) as mock_change:
+        control_panel._auto_stop_alarm_if_all_released()
+        mock_change.assert_not_called()
+
+
+def test_auto_stop_alarm_stops_when_all_released(
+    control_panel, mock_alarm_manager, mock_sensor_manager
+):
+    """Test _auto_stop_alarm stops alarm when all sensors released."""
+    control_panel.alarm_manager = mock_alarm_manager
+    control_panel.sensor_manager = mock_sensor_manager
+    mock_alarm_manager.is_ringing.return_value = True
+    mock_sensor_manager.if_intrusion_detected.return_value = False
+
+    with patch.object(
+        control_panel.state_manager, "change_state_to"
+    ) as mock_change:
+        control_panel._auto_stop_alarm_if_all_released()
+        mock_change.assert_called_once_with(ControlPanelState.INITIALIZED)
+
+
+# ============================================================================
+# _turn_panel_off Tests
+# ============================================================================
+
+
+def test_turn_panel_off_when_not_powered(control_panel):
+    """Test _turn_panel_off returns early when not powered."""
+    control_panel.powered = False
+
+    control_panel._turn_panel_off()
+
+    control_panel.turn_system_off.assert_not_called()
+
+
+def test_turn_panel_off_success(control_panel):
+    """Test _turn_panel_off successful shutdown."""
+    control_panel.powered = True
+    control_panel.turn_system_off.return_value = True
+
+    # Capture and execute the after callback to cover the success path
+    def capture_after(delay, callback):
+        callback()
+        return 123
+
+    with patch.object(control_panel, "after") as mock_after:
+        mock_after.side_effect = capture_after
+        control_panel._turn_panel_off()
+
+    # Should transition to OFFLINE state
+    assert control_panel.state_manager.panel_state == ControlPanelState.OFFLINE
+
+
+def test_turn_panel_off_failure(control_panel):
+    """Test _turn_panel_off when turn_system_off returns False."""
+    control_panel.powered = True
+    control_panel.turn_system_off.return_value = False
+
+    # Capture the after callback and execute it
+    def capture_after(delay, callback):
+        callback()
+        return 123
+
+    with patch.object(control_panel, "after") as mock_after:
+        mock_after.side_effect = capture_after
+        control_panel._turn_panel_off()
+
+    # Should show failure message
+    assert "failed" in control_panel.ui.short_message1.lower()
+
+
+def test_turn_panel_off_exception(control_panel):
+    """Test _turn_panel_off when turn_system_off raises exception."""
+    control_panel.powered = True
+    control_panel.turn_system_off.side_effect = Exception("Test error")
+
+    # Capture the after callback and execute it
+    def capture_after(delay, callback):
+        callback()
+        return 123
+
+    with patch.object(control_panel, "after") as mock_after:
+        mock_after.side_effect = capture_after
+        control_panel._turn_panel_off()
+
+    # Should show failure message
+    assert "failed" in control_panel.ui.short_message1.lower()
+
+
+# ============================================================================
+# _reset_panel Tests
+# ============================================================================
+
+
+def test_reset_panel(control_panel):
+    """Test _reset_panel turns off and restarts panel."""
+    control_panel.powered = True
+
+    with (
+        patch.object(control_panel, "_turn_panel_off") as mock_off,
+        patch.object(control_panel, "_turn_panel_on"),
+        patch.object(control_panel, "after") as mock_after,
+    ):
+        mock_after.return_value = 123
+        control_panel._reset_panel()
+
+        mock_off.assert_called_once()
+        # After callback should be scheduled for restart
+        mock_after.assert_called()
+
+
+def test_reset_panel_sets_reset_database(control_panel):
+    """Test _reset_panel sets reset database flag."""
+    control_panel.powered = True
+
+    # Capture and execute all after callbacks
+    callbacks = []
+
+    def capture_after(delay, callback):
+        callbacks.append((delay, callback))
+        return len(callbacks)
+
+    with (
+        patch.object(control_panel, "_turn_panel_off"),
+        patch.object(control_panel, "after") as mock_after,
+    ):
+        mock_after.side_effect = capture_after
+        control_panel._reset_panel()
+
+    # Execute restart callback (should be the last one for restart)
+    for delay, callback in callbacks:
+        if delay > 100:  # The restart callback has a longer delay
+            callback()
+            break
+
+    control_panel.set_reset_database.assert_called_with(True)
+
+
+# ============================================================================
+# _panic_button_press Tests
+# ============================================================================
+
+
+def test_panic_button_press(control_panel):
+    """Test _panic_button_press shows message and makes calls."""
+    with patch.object(control_panel, "after") as mock_after:
+        mock_after.return_value = 123
+        control_panel._panic_button_press()
+        mock_after.assert_called()
+
+    # Check emergency message is displayed
+    assert "Emergency" in control_panel.ui.short_message1
+
+
+def test_panic_button_press_success(control_panel):
+    """Test _panic_button_press when external call succeeds."""
+    control_panel.external_call.return_value = ["123-456-7890"]
+
+    # Capture and execute make_calls callback
+    callbacks = []
+
+    def capture_after(delay, callback):
+        callbacks.append((delay, callback))
+        return len(callbacks)
+
+    with patch.object(control_panel, "after") as mock_after:
+        mock_after.side_effect = capture_after
+        control_panel._panic_button_press()
+
+    # Execute the make_calls callback
+    for delay, callback in callbacks:
+        if delay > 0:
+            callback()
+            break
+
+    control_panel.external_call.assert_called_once()
+
+
+def test_panic_button_press_failure(control_panel):
+    """Test _panic_button_press when external call fails."""
+    control_panel.external_call.return_value = []
+
+    # Capture and execute make_calls callback
+    callbacks = []
+
+    def capture_after(delay, callback):
+        callbacks.append((delay, callback))
+        return len(callbacks)
+
+    with patch.object(control_panel, "after") as mock_after:
+        mock_after.side_effect = capture_after
+        control_panel._panic_button_press()
+
+    # Execute the make_calls callback
+    for delay, callback in callbacks:
+        if delay > 0:
+            callback()
+            break
+
+    # Should show failure message
+    assert "failed" in control_panel.ui.short_message1.lower()
+
+
+# ============================================================================
+# _verify_login Additional Tests
+# ============================================================================
+
+
+def test_verify_login_no_login_manager(control_panel):
+    """Test _verify_login returns False when no login manager."""
+    control_panel.login_manager = None
+
+    assert control_panel._verify_login("master") is False
+
+
+def test_verify_login_guest_success(control_panel, mock_login_manager):
+    """Test _verify_login for guest user."""
+    mock_login_manager.is_logged_in_panel = True
+    mock_login_manager.current_user_id = "guest"
+
+    assert control_panel._verify_login("guest") is True
+
+
+def test_verify_login_guest_fail_wrong_user(control_panel, mock_login_manager):
+    """Test _verify_login for guest fails when logged in as master."""
+    mock_login_manager.is_logged_in_panel = True
+    mock_login_manager.current_user_id = "master"
+
+    assert control_panel._verify_login("guest") is False
+
+
+def test_verify_login_invalid_id(control_panel, mock_login_manager):
+    """Test _verify_login returns False for invalid ID."""
+    mock_login_manager.is_logged_in_panel = True
+    mock_login_manager.current_user_id = "master"
+
+    # Call with invalid id (not "master" or "guest")
+    # The function only handles "master" and "guest", so it returns False
+    assert control_panel._verify_login("admin") is False
+
+
+# ============================================================================
+# Zone Navigation Additional Tests
+# ============================================================================
+
+
+def test_navigate_to_previous_zone_not_in_list(control_panel):
+    """Test navigating to previous zone when current zone not in list."""
+    control_panel.ui.security_zone_number = 999  # Not in list
+
+    control_panel._navigate_to_previous_zone()
+
+    # Should set to first zone
+    assert control_panel.ui.security_zone_number == 1
+
+
+def test_navigate_to_next_zone_not_in_list(control_panel):
+    """Test navigating to next zone when current zone not in list."""
+    control_panel.ui.security_zone_number = 999  # Not in list
+
+    control_panel._navigate_to_next_zone()
+
+    # Should set to first zone
+    assert control_panel.ui.security_zone_number == 1
+
+
+def test_navigate_to_previous_with_empty_zones(control_panel):
+    """Test _navigate_to_previous_zone with no zones."""
+    control_panel.configuration_manager.safety_zones = {}
+    control_panel.ui.security_zone_number = None
+
+    control_panel._navigate_to_previous_zone()
+
+    assert control_panel.ui.security_zone_number is None
