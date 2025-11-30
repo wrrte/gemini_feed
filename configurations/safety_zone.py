@@ -231,8 +231,8 @@ class SafetyZone:
         """String representation of SafetyZone."""
         status = "ARMED" if self.arm_status else "DISARMED"
         return (
-            f"SafetyZone(ID={self.safetyzone_id}, "
-            f"Name='{self.name}', "
-            f"Sensors={len(self.sensor_id_list)},"
-            f"Appliances={len(self.appliance_id_list)}, Status={status})"
+            f"SafetyZone(ID={self.zone_id}, "
+            f"Name='{self.zone_name}', "
+            f"Sensors={len(self.sensor_id_list)}, "
+            f"Status={status})"
         )

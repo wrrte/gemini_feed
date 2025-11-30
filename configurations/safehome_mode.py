@@ -124,14 +124,12 @@ class SafeHomeMode:
         Remove all sensors from this SafeHomeMode.
         """
         self.sensor_id_list.clear()
-        self.appliance_id_list.clear()
 
     def __str__(self):
         """String representation of SafeHomeMode."""
         return (
             f"SafeHomeMode(ID={self.mode_id}, Mode='{self.mode_name}', "
             f"Sensors={len(self.sensor_id_list)},"
-            f"Appliances={len(self.appliance_id_list)})"
         )
 
     def to_schema(self) -> SafeHomeModeSchema:
