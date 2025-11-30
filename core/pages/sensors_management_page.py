@@ -433,7 +433,7 @@ class SensorsManagementPage(InterfaceWindow):
                 self.sensor_manager.disarm_sensor(sensor_id)
             self._update_status()
 
-    @limits(calls=1, period=1)  # 1초에 1번만 호출 가능
+    @limits(calls=1, period=1)  # Can be called only once per second
     def _execute_physical_action(self, category: str, action: str):
         """
         Execute the actual physical action (rate-limited).
@@ -455,7 +455,7 @@ class SensorsManagementPage(InterfaceWindow):
         Handle Intrude/Release actions with rate limiting.
         (Simulate direct sensor intrusion and release).
 
-        Cooldown: 1초 - 과도한 클릭 방지
+        Cooldown: 1 second - prevents excessive clicking
 
         Args:
             category: Sensor category ("windoor" or "motion")

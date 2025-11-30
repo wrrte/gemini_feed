@@ -4,6 +4,7 @@ from core.control_panel.control_panel import ControlPanel
 from core.pages.utils import show_toast
 from core.web_app import WebApp
 from database.schema.log import LogLevel
+from database.schema.sensor import SensorType
 from device.appliance.alarm import Alarm
 from device.sensor import create_sensor_from_schema
 from manager.alarm_manager import AlarmManager
@@ -34,7 +35,7 @@ class System:
         # Services
         self.external_call_service: ExternalCallService = ExternalCallService()
 
-        # Conrtol Panel
+        # Control Panel
         self.control_panel = ControlPanel(
             turn_system_on=self.turn_on,
             turn_system_off=self.turn_off,
@@ -59,27 +60,29 @@ class System:
         # Arrange windows
         self._arrange_windows()
 
-        # [수정] 자동 로그인 로직 개선
+        # [Modified] Improved auto-login logic
         if self.auto_login:
             print("--- Auto Login Sequence Started ---")
 
-            # 1. 실제 사용자가 '1'번(ON) 버튼을 누른 것처럼 함수를 호출합니다.
-            #    이 함수가 내부적으로 turn_on()을 호출하고 LED도 켭니다.
+            # 1. Call the function as if the user pressed the '1'(ON) button.
+            #    This function internally calls turn_on() and turns on the LED.
             self.control_panel.input_handler.handle_button_press("1")
 
-            # 2. 패널이 부팅되는 시간(약 2초)을 기다린 후 로그인을 수행합니다.
-            #    바로 로그인하면 패널이 아직 '켜지는 중'이라서 거절당합니다.
+            # 2. Wait for the panel to boot up (about 2 seconds)
+            # before performing login.
+            # Logging in immediately will be rejected because the panel is
+            # still 'turning on'.
             self.control_panel.after(2500, self._execute_login)
 
         # Start main loop
         self.control_panel.mainloop()
 
     def _execute_login(self):
-        """패널 부팅 후 실행될 실제 로그인 로직"""
-        test_user_id = "master"  # 또는 "admin"
+        """Actual login logic to be executed after panel boot"""
+        test_user_id = "master"  # or "admin"
         test_password = "12345678"
 
-        # LoginManager를 통해 로그인 시도
+        # Attempt login through LoginManager
         if self.login_manager.login_web(test_user_id, test_password):
             print(f"Logged in as: {test_user_id}")
             self.web_app.switch_to_main()
@@ -105,6 +108,7 @@ class System:
                 login_manager=self.login_manager,
                 configuration_manager=self.configuration_manager,
                 alarm_manager=self.alarm_manager,
+                sensor_manager=self.sensor_manager,
             )
 
             # Start sensor monitoring in background
@@ -162,42 +166,64 @@ class System:
             )
         return success_phone_numbers
 
-    def ring_alarm_and_external_call(self):
+    def handle_intrusion(
+        self,
+        sensor_id: int,
+        sensor_type: SensorType,
+    ):
         """
-        Ring the alarm and make an external call.
+        handle intrusion.
+        - check if alarm is already ringing
+        - log the event
+        - ring the alarm
+        - make an external call
 
         Thread-safe: Can be called from background threads.
         GUI updates are scheduled on the main thread using after().
         """
+        # if already ringing, return
+        if self.alarm_manager.is_ringing():
+            return
+
+        # log the event
+        if self.log_manager:
+            self.log_manager.log(
+                f"INTRUSION DETECTED: Sensor {sensor_id} "
+                f"(Type: {sensor_type.name}) triggered!",
+                level=LogLevel.CRITICAL,
+            )
+
+        # ring the alarm
         self.alarm_manager.ring_alarm()
 
-        # Schedule GUI update on main thread (thread-safe)
+        # start count down for external call (GUI update at main thread)
         if self.control_panel:
             self.control_panel.after(
-                0, self.control_panel.start_ring_alarm_and_external_call
+                0, self.control_panel.start_count_down_for_external_call
             )
         else:
             print("ControlPanel is not initialized")
 
     def _arrange_windows(self):
         """Arrange ControlPanel and WebApp windows side-by-side."""
-        # 1. Control Panel 위치 설정 (화면 좌측 상단)
-        # 화면 중앙 계산 등을 하면 좋겠지만 단순하게 고정 위치 사용
+        # 1. Set Control Panel position (top-left of screen)
+        # Using fixed position instead of calculating screen center for
+        # simplicity
         cp_x, cp_y = 100, 100
         self.control_panel.geometry(f"+{cp_x}+{cp_y}")
 
-        # 2. WebApp 위치 설정 (Control Panel 우측)
-        # ControlPanel 너비(505) + 여백(20)
+        # 2. Set WebApp position (to the right of Control Panel)
+        # ControlPanel width (505) + margin (20)
         wa_x = cp_x + 505 + 20
         wa_y = cp_y
         self.web_app.geometry(f"+{wa_x}+{wa_y}")
 
-        # 3. Z-order 조정 (Control Panel을 최상위로)
-        # WebApp을 먼저 올리고 ControlPanel을 그 위로 올림
+        # 3. Adjust Z-order (Control Panel on top)
+        # Lift WebApp first, then ControlPanel on top of it
         self.web_app.lift()
         self.control_panel.lift()
 
-        # 4. 포커스 설정
+        # 4. Set focus
         self.control_panel.focus_force()
 
     def _initialize_managers(self):
@@ -229,7 +255,7 @@ class System:
                 },
                 log_manager=self.log_manager,
                 external_call=self.external_call,
-                ring_alarm_and_external_call=self.ring_alarm_and_external_call,
+                handle_intrusion=self.handle_intrusion,
             )
             self.log_manager.log("SensorManager initialized successfully")
 

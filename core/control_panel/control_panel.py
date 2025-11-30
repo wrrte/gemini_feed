@@ -71,6 +71,7 @@ class ControlPanel(ctk.CTk):
         self.login_manager = login_manager
         self.configuration_manager = configuration_manager
         self.alarm_manager = None
+        self.sensor_manager = None
 
         # Initialize state
         self.powered = False
@@ -88,6 +89,7 @@ class ControlPanel(ctk.CTk):
         login_manager: LoginManager,
         configuration_manager: ConfigurationManager,
         alarm_manager=None,
+        sensor_manager=None,
     ):
         """
         Set the managers.
@@ -96,19 +98,18 @@ class ControlPanel(ctk.CTk):
             login_manager: Manager for login operations
             configuration_manager: Manager for system configuration
             alarm_manager: Manager for alarm operations
+            sensor_manager: Manager for sensor operations
         """
         self.login_manager = login_manager
         self.configuration_manager = configuration_manager
         self.alarm_manager = alarm_manager
+        self.sensor_manager = sensor_manager
 
-    def start_ring_alarm_and_external_call(self):
+    def start_count_down_for_external_call(self):
         """
-        Start ring alarm.
-
-        If new intrusion is detected, cancel timer and restart ringing alarm
-        and make an external call.
+        Start count down for external call.
         """
-        self.state_manager.start_ring_alarm_and_external_call()
+        self.state_manager.start_count_down_for_external_call()
 
     def _turn_panel_on(self):
         """Turn panel on."""
@@ -178,6 +179,59 @@ class ControlPanel(ctk.CTk):
         self.after(
             UI_UPDATE_DELAY_MS, lambda: self.ui.set_display_not_ready(False)
         )
+        self.after(UI_UPDATE_DELAY_MS, self.sync_system_state_loop)
+
+    def sync_system_state_loop(self):
+        """
+        Periodically sync system state with UI and hardware.
+
+        This loop handles:
+        1. Armed LED synchronization with current zone state
+        2. Alarm auto-stop when all intrusions are cleared
+        """
+        if not self.powered:
+            return
+
+        # 1. Sync armed LED with current zone
+        self._sync_armed_led()
+
+        # 2. Auto-stop alarm if all sensors are released
+        self._auto_stop_alarm_if_all_released()
+
+        # Schedule next sync after 500ms
+        self.after(500, self.sync_system_state_loop)
+
+    def _sync_armed_led(self):
+        """Synchronize armed LED with current security zone state."""
+        current_zone_id = self.ui.security_zone_number
+
+        if current_zone_id is not None and self.configuration_manager:
+            zone = self.configuration_manager.safety_zones.get(current_zone_id)
+            if zone:
+                self.ui.set_armed_led(zone.is_armed())
+
+    def _auto_stop_alarm_if_all_released(self):
+        """
+        Automatically stop alarm if all sensors are released.
+
+        Logic:
+        - Check if alarm is currently ringing
+        - Check if any sensor still detects intrusion
+        - If alarm is ringing but no intrusions → return to INITIALIZED
+          (automatically stops alarm and cancels countdown)
+        """
+        # Check if all required managers are available
+        if not self.alarm_manager or not self.sensor_manager:
+            return
+
+        # If alarm is ringing
+        if self.alarm_manager.is_ringing():
+            # Check if any intrusion is still active
+            if not self.sensor_manager.if_intrusion_detected():
+                # All sensors released → return to INITIALIZED state
+                self.state_manager.change_state_to(
+                    ControlPanelState.INITIALIZED
+                )
 
     def _turn_panel_off(self):
         """Turn panel off."""
@@ -327,9 +381,12 @@ class ControlPanel(ctk.CTk):
         if not zone_ids:
             return
 
-        if self.ui.security_zone_number is None:
-            self.ui.security_zone_number = zone_ids[0]
-        elif self.ui.security_zone_number in zone_ids:
+        if (
+            self.ui.security_zone_number is None
+            or self.ui.security_zone_number not in zone_ids
+        ):
+            self.ui.set_security_zone_number(zone_ids[0])
+        else:
             idx = zone_ids.index(self.ui.security_zone_number) - 1
             self.ui.set_security_zone_number(zone_ids[idx])
 
@@ -339,8 +396,11 @@ class ControlPanel(ctk.CTk):
         if not zone_ids:
             return
 
-        if self.ui.security_zone_number is None:
-            self.ui.security_zone_number = zone_ids[0]
-        elif self.ui.security_zone_number in zone_ids:
+        if (
+            self.ui.security_zone_number is None
+            or self.ui.security_zone_number not in zone_ids
+        ):
+            self.ui.set_security_zone_number(zone_ids[0])
+        else:
             idx = zone_ids.index(self.ui.security_zone_number) + 1
             self.ui.set_security_zone_number(zone_ids[idx % len(zone_ids)])

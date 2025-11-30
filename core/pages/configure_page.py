@@ -22,7 +22,7 @@ class ConfigurePage(InterfacePage):
         self.draw_page()
 
     def draw_page(self):
-        # 중앙 정렬을 위한 메인 컨테이너 (스크롤 가능하도록 변경)
+        # Main container for center alignment (changed to scrollable)
         container = ctk.CTkScrollableFrame(self, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=20, pady=20)
 

@@ -5,7 +5,7 @@ import customtkinter as ctk
 
 class PageMixin(ABC):
     """
-    모든 페이지(내부 프레임, 외부 창)가 공통으로 가지는 기능 정의
+    Common functionality for all pages (internal frames, external windows)
     """
 
     def __init__(self, page_id: str):
@@ -14,46 +14,47 @@ class PageMixin(ABC):
     @abstractmethod
     def draw_page(self):
         """
-        페이지의 UI 요소를 그리는 메서드입니다.
-        자식 클래스에서 반드시 구현해야 합니다.
+        Draw the UI elements of the page.
+        Must be implemented by child classes.
         """
         pass
 
     def get_id(self) -> str:
-        """페이지의 ID를 반환합니다."""
+        """Return the ID of the page."""
         return self.id
 
     def set_id(self, page_id: str):
-        """페이지의 ID를 설정합니다."""
+        """Set the ID of the page."""
         self.id = page_id
 
 
 class InterfacePage(ctk.CTkFrame, PageMixin):
     """
-    메인 앱 내부에 포함되는 페이지 (Frame 기반)
+    Page included inside the main app (Frame-based)
     """
 
     def __init__(self, master, page_id: str, **kwargs):
-        # CTkFrame 초기화
+        # Initialize CTkFrame
         ctk.CTkFrame.__init__(self, master, **kwargs)
-        # PageMixin 초기화
+        # Initialize PageMixin
         PageMixin.__init__(self, page_id)
 
 
 class InterfaceWindow(ctk.CTkToplevel, PageMixin):
     """
-    별도의 창으로 뜨는 페이지 (Toplevel 기반)
+    Page that appears as a separate window (Toplevel-based)
     """
 
     def __init__(
-            self,
-            master,
-            page_id: str,
-            title: str = "SafeHome Window",
-            initially_hidden: bool = True,
-            window_width: int = 400,
-            window_height: int = 300,
-            **kwargs):
+        self,
+        master,
+        page_id: str,
+        title: str = "SafeHome Window",
+        initially_hidden: bool = True,
+        window_width: int = 400,
+        window_height: int = 300,
+        **kwargs,
+    ):
         # initialize CTkToplevel
         ctk.CTkToplevel.__init__(self, master, **kwargs)
         # initially hidden

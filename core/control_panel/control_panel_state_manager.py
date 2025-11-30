@@ -90,6 +90,7 @@ class ControlPanelStateManager:
             self.parent.input_handler.digit_input = []
             self.parent.input_handler.panel_id_input = ""
             self.parent.input_handler.new_password_temp = ""
+            self.stop_alarm_ring()  # stop alarm ring if it is ringing
             msg1 = custom_message1 or PANEL_DEFAULT_MESSAGE1
             msg2 = custom_message2 or PANEL_DEFAULT_MESSAGE2
             self.parent.ui.set_display_messages(msg1, msg2, login_prefix)
@@ -115,10 +116,11 @@ class ControlPanelStateManager:
             self.parent.input_handler.panel_id_input = ""
             msg1 = custom_message1 or "Enter panel ID."
             msg2 = custom_message2 or "* for MASTER, # for GUEST"
+            self.stop_alarm_ring()  # stop alarm ring if it is ringing
             self.parent.ui.set_display_messages(msg1, msg2, login_prefix)
 
         elif new_state == ControlPanelState.DIGIT_INPUT:
-            # digit_input은 이미 초기화되어 있어야 함
+            # digit_input should already be initialized
             msg1 = custom_message1 or "Enter 4 digits password."
             msg2 = custom_message2 or ""
             self.parent.ui.set_display_messages(msg1, msg2, login_prefix)
@@ -132,7 +134,7 @@ class ControlPanelStateManager:
 
         elif new_state == ControlPanelState.MASTER_PASSWORD_CHANGE_INPUT_2:
             self.parent.input_handler.digit_input = []
-            # new_password_temp는 유지
+            # new_password_temp is preserved
             msg1 = custom_message1 or "Re-enter new password"
             msg2 = custom_message2 or ""
             self.parent.ui.set_display_messages(msg1, msg2, login_prefix)
@@ -195,18 +197,16 @@ class ControlPanelStateManager:
         self.cancel_all_timers()
         self.change_state_to(ControlPanelState.INITIALIZED)
 
-    def start_ring_alarm_and_external_call(self):
+    def start_count_down_for_external_call(self):
         """
-        Start ring alarm.
-        If new intrusion is detected, cancel timer and restart ringing alarm
-        and make an external call.
+        Start count down for external call.
         """
         # if timer is running, cancel it
         if self.ring_timer_id:
             self.parent.after_cancel(self.ring_timer_id)
             self.ring_timer_id = None
 
-        # start ringing alarm
+        # start count down for external call
         self.change_state_to(ControlPanelState.RINGING_ALARM)
 
     def _update_ring_timer(self):
@@ -230,7 +230,7 @@ class ControlPanelStateManager:
                 1000, self._update_ring_timer
             )
         else:
-            # 타이머 종료
+            # Timer finished
             self.ring_timer_id = None
             self.ring_start_time = None
 
@@ -257,13 +257,13 @@ class ControlPanelStateManager:
 
     def cancel_all_timers(self):
         """Cancel all timers and reset their state."""
-        # Lock 타이머 취소
+        # Cancel lock timer
         if self.lock_timer_id:
             self.parent.after_cancel(self.lock_timer_id)
             self.lock_timer_id = None
         self.lock_start_time = None
 
-        # Ring 타이머 취소
+        # Cancel ring timer
         if self.ring_timer_id:
             self.parent.after_cancel(self.ring_timer_id)
             self.ring_timer_id = None

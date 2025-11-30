@@ -11,7 +11,7 @@ from manager.sensor_manager import SensorManager
 
 class SafeHomeModeConfigurePage(InterfaceWindow):
     """
-    [팝업 창] 보안 모드별 센서 구성을 변경하는 윈도우
+    [Popup Window] Window for changing sensor configuration per security mode
     """
 
     def __init__(

@@ -464,7 +464,8 @@ class SecurityPage(InterfacePage):
             x = sensor.coordinate_x
             y = sensor.coordinate_y
 
-            color = "red" if sensor.is_armed() else "black"
+            fill_color = "red" if sensor.is_armed() else "#B0BEC5"
+            outline_color = "black" if sensor.is_armed() else "gray60"
             line_width = 3 if sensor.is_armed() else 2
 
             if sensor.get_type() == SensorType.MOTION_DETECTOR_SENSOR:
@@ -473,7 +474,13 @@ class SecurityPage(InterfacePage):
                 y2 = getattr(sensor, "coordinate_y2", y)
 
                 self.canvas.create_line(
-                    x, y, x2, y2, fill=color, width=line_width, tags="sensor"
+                    x,
+                    y,
+                    x2,
+                    y2,
+                    fill=fill_color,
+                    width=line_width,
+                    tags="sensor",
                 )
 
                 # Endpoints
@@ -483,7 +490,7 @@ class SecurityPage(InterfacePage):
                     y - r,
                     x + r,
                     y + r,
-                    fill=color,
+                    fill=fill_color,
                     outline="",
                     tags="sensor",
                 )
@@ -492,7 +499,7 @@ class SecurityPage(InterfacePage):
                     y2 - r,
                     x2 + r,
                     y2 + r,
-                    fill=color,
+                    fill=fill_color,
                     outline="",
                     tags="sensor",
                 )
@@ -509,8 +516,8 @@ class SecurityPage(InterfacePage):
                     y - 5,
                     x + 5,
                     y + 5,
-                    fill=color,
-                    outline="",
+                    fill=fill_color,
+                    outline=outline_color,
                     tags="sensor",
                 )
                 text_x = x + 10

@@ -58,7 +58,7 @@ class WebApp(InterfaceWindow):
         self.navbar = None
         self.content = None
         self.pages: dict[str, InterfacePage | InterfaceWindow] = {}
-        # 동적으로 생성된 SingleCameraView 페이지들을 추적
+        # Track dynamically created SingleCameraView pages
         self.single_camera_views: dict[int, InterfaceWindow] = {}
         self.container = ctk.CTkFrame(
             self,
@@ -74,10 +74,10 @@ class WebApp(InterfaceWindow):
     def draw_page(self):
         """Draw the page UI elements based on login status."""
         if not self.login_manager or not self.login_manager.is_logged_in_web:
-            # 로그인 전: 로그인 페이지만 표시
+            # Before login: Show only login page
             self.draw_login_page()
         else:
-            # 로그인 후: 메인 인터페이스 표시
+            # After login: Show main interface
             self.draw_main_interface()
 
     def is_system_powered(self) -> bool:
@@ -93,7 +93,7 @@ class WebApp(InterfaceWindow):
 
     def draw_login_page(self):
         """Draw login page only."""
-        # 동적으로 생성된 SingleCameraView 창들 모두 닫기
+        # Close all dynamically created SingleCameraView windows
         self.close_all_single_camera_views()
 
         # destroy all pages (except login page)
@@ -103,7 +103,7 @@ class WebApp(InterfaceWindow):
         for name in pages_to_destroy:
             self.destroy_page(name)
 
-        # 로그인 페이지 생성 및 표시
+        # Create and display login page
         name = LoginPage.__name__
         if self.pages.get(name) is None:
             self.register_page(
@@ -376,7 +376,7 @@ class WebApp(InterfaceWindow):
 
     def clean_up_managers(self):
         """Clean up managers and close all dynamic windows."""
-        # 동적으로 생성된 창들 모두 닫기
+        # Close all dynamically created windows
         self.close_all_single_camera_views()
 
         self.sensor_manager = None
@@ -387,9 +387,9 @@ class WebApp(InterfaceWindow):
     def close_all_single_camera_views(self):
         """
         Close all dynamically created SingleCameraView windows.
-        시스템이 종료되거나 로그아웃 시 모든 카메라 뷰 창을 닫습니다.
+        Closes all camera view windows when system shuts down or user logs out.
         """
-        # 모든 SingleCameraView 창 닫기
+        # Close all SingleCameraView windows
         camera_ids_to_close = list(self.single_camera_views.keys())
         for camera_id in camera_ids_to_close:
             window = self.single_camera_views[camera_id]
@@ -399,40 +399,40 @@ class WebApp(InterfaceWindow):
             except Exception as e:
                 print(f"Error closing camera view {camera_id}: {e}")
 
-        # 딕셔너리 초기화
+        # initialize dictionary
         self.single_camera_views.clear()
 
     def open_single_camera_view(self, camera_id: int):
         """
         Open a single camera view window for the specified camera.
-        SingleCameraViewPage는 동적으로 camera_id를 받아야 하므로
-        register_page로 등록하지 않고 필요할 때마다 생성합니다.
+        Since SingleCameraViewPage dynamically receives camera_id,
+        it is created on demand rather than being registered via register_page.
 
-        같은 camera_id의 창이 이미 열려있으면 새로 생성하지 않고
-        기존 창을 앞으로 가져옵니다.
+        If a window with the same camera_id is already open, it brings the
+        existing window to the front instead of creating a new one.
 
         Args:
             camera_id: ID of the camera to view
         """
-        # 이미 해당 카메라의 창이 열려있는지 확인
+        # Check if a window for this camera is already open
         if camera_id in self.single_camera_views:
             existing_window = self.single_camera_views[camera_id]
-            # 창이 아직 존재하는지 확인 (winfo_exists로 확인)
+            # Check if the window still exists (using winfo_exists)
             try:
                 if existing_window.winfo_exists():
-                    # 창을 앞으로 가져오기
-                    existing_window.deiconify()  # 최소화 해제
-                    existing_window.focus()  # 포커스
-                    existing_window.lift()  # 최상단으로
+                    # Bring the window to the front
+                    existing_window.deiconify()  # Restore if minimized
+                    existing_window.focus()  # Set focus
+                    existing_window.lift()  # Bring to top
                     return
                 else:
-                    # 창이 이미 파괴되었으면 딕셔너리에서 제거
+                    # Remove from dictionary if window was already destroyed
                     del self.single_camera_views[camera_id]
             except Exception:
-                # 창이 더 이상 유효하지 않으면 딕셔너리에서 제거
+                # Remove from dictionary if window is no longer valid
                 del self.single_camera_views[camera_id]
 
-        # 새 창 생성
+        # Create new window
         window = SingleCameraViewPage(
             master=self,
             page_id=f"single_camera_view_{camera_id}",
@@ -441,10 +441,10 @@ class WebApp(InterfaceWindow):
             initially_hidden=False,
         )
 
-        # 딕셔너리에 추가
+        # Add to dictionary
         self.single_camera_views[camera_id] = window
 
-        # 창이 닫힐 때 딕셔너리에서 제거
+        # Remove from dictionary when window is closed
         def on_window_close():
             if camera_id in self.single_camera_views:
                 del self.single_camera_views[camera_id]

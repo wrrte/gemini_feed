@@ -8,8 +8,7 @@ import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
-from database.schema.log import LogLevel
-from database.schema.sensor import SensorSchema
+from database.schema.sensor import SensorSchema, SensorType
 from device.sensor.interface_sensor import InterfaceSensor
 from manager.log_manager import LogManager
 
@@ -30,7 +29,7 @@ class SensorManager:
         sensor_dict: dict[int, InterfaceSensor] = {},
         log_manager: Optional[LogManager] = None,
         external_call: Optional[Callable[[], List[str]]] = None,
-        ring_alarm_and_external_call: Optional[Callable[[], None]] = None,
+        handle_intrusion: Optional[Callable[[int, SensorType], None]] = None,
     ):
         """
         Initialize the SensorManager.
@@ -38,7 +37,7 @@ class SensorManager:
         # managers & services
         self.log_manager = log_manager
         self.external_call = external_call
-        self.ring_alarm_and_external_call = ring_alarm_and_external_call
+        self.handle_intrusion = handle_intrusion
 
         # initialize sensors
         self.sensor_dict = {}
@@ -282,38 +281,7 @@ class SensorManager:
         for sensor_id, sensor in self.sensor_dict.items():
             # if the sensor is armed and intrusion is detected
             if sensor.is_armed() and sensor.read():
-                self._handle_intrusion(sensor_id, sensor)
-                # reset sensor state to avoid duplicate alarm
-                sensor.release()
-
-    def _handle_intrusion(self, sensor_id: int, sensor: InterfaceSensor):
-        """
-        Handle intrusion detection.
-        Log the event, ring the alarm, and make an external call.
-
-        Args:
-            sensor_id: ID of the sensor that detected intrusion
-            sensor: Sensor object
-        """
-        try:
-            # log the event
-            if self.log_manager:
-                self.log_manager.log(
-                    f"INTRUSION DETECTED: Sensor {sensor_id} "
-                    f"(Type: {sensor.get_type().name}) triggered!",
-                    level=LogLevel.CRITICAL,
-                )
-
-            # ring the alarm and make an external call
-            if self.ring_alarm_and_external_call:
-                self.ring_alarm_and_external_call()
-
-        except Exception as e:
-            print(f"[SensorMonitor] Error handling intrusion: {e}")
-            if self.log_manager:
-                self.log_manager.error(
-                    f"Error handling intrusion for sensor {sensor_id}: {e}"
-                )
+                self.handle_intrusion(sensor_id, sensor.get_type())
 
 
 if __name__ == "__main__":

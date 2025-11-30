@@ -57,12 +57,6 @@ class ControlPanelInputHandler:
             and self.parent.state_manager.panel_state
             != ControlPanelState.PANEL_ID_INPUT
         ):
-            # If in RINGING_ALARM state, stop alarm and cancel timer
-            if (
-                self.parent.state_manager.panel_state
-                == ControlPanelState.RINGING_ALARM
-            ):
-                self.parent.state_manager.stop_alarm_ring()
             self.parent.state_manager.change_state_to(
                 ControlPanelState.INITIALIZED
             )

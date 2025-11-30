@@ -24,12 +24,13 @@ class SurveillancePage(InterfacePage):
         self.draw_page()
 
     def draw_page(self):
-        # 그리드 설정 (좌측: 나머지, 우측: 고정 570px)
-        self.grid_columnconfigure(0, weight=1)  # 좌측은 남은 공간 차지
-        self.grid_columnconfigure(1, weight=0, minsize=600)  # 우측 고정 570px
+        # Grid configuration (left: flexible, right: fixed 570px)
+        self.grid_columnconfigure(0, weight=1)  # Left takes remaining space
+        self.grid_columnconfigure(
+            1, weight=0, minsize=600)  # Right fixed 570px
         self.grid_rowconfigure(0, weight=1)
 
-        # ===== 좌측 패널 (Controls + Status) =====
+        # ===== Left Panel (Controls + Status) =====
         self.left_panel = ctk.CTkFrame(self, fg_color="transparent")
         self.left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         self.left_panel.grid_rowconfigure(0, weight=0)
@@ -118,7 +119,7 @@ class SurveillancePage(InterfacePage):
         # Mock Status
         self._display_camera_status()
 
-        # ===== 우측 패널 (Floor Plan) =====
+        # ===== Right Panel (Floor Plan) =====
         self.right_panel = ctk.CTkFrame(self, corner_radius=10)
         self.right_panel.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
@@ -143,7 +144,7 @@ class SurveillancePage(InterfacePage):
         self.canvas.bind("<Configure>", self._on_canvas_ready)
 
     def _on_canvas_ready(self, event=None):
-        # 디바운스(빠른 연속 호출 방지)
+        # Debounce (prevent rapid consecutive calls)
         if getattr(self, "_fp_job", None):
             self.canvas.after_cancel(self._fp_job)
 
@@ -186,7 +187,8 @@ class SurveillancePage(InterfacePage):
             state_lbl.bind("<Button-1>", self._status_item_click_handler)
             state_lbl._cam_index = idx
 
-            # 비밀번호 보호 상태 레이블 (항상 생성하되, 조건부로 표시)
+            # Password protection status label (always created, conditionally
+            # shown)
             locked_lbl = ctk.CTkLabel(
                 item_frame,
                 text="Locked",
@@ -196,7 +198,7 @@ class SurveillancePage(InterfacePage):
             locked_lbl.bind("<Button-1>", self._status_item_click_handler)
             locked_lbl._cam_index = idx
 
-            # has_password가 True일 때만 표시
+            # Show only when has_password is True
             has_password = cam_info.get("has_password", False)
             if has_password:
                 locked_lbl.pack(side="right", padx=10)
@@ -417,7 +419,7 @@ class SurveillancePage(InterfacePage):
             camera.get_id(), camera.get_password()
         )
 
-        # UI 업데이트 (잠금 상태 반영)
+        # Update UI (reflect lock status)
         self._update_controls_and_status()
 
     def _status_item_click_handler(self, event):
@@ -473,7 +475,7 @@ class SurveillancePage(InterfacePage):
 
         self.setpwd_btn.configure(state="normal")
 
-        # 잠금 상태 업데이트 (동적으로 표시/숨김)
+        # Update lock status (dynamically show/hide)
         has_password = cam_info.get("has_password", False)
         locked_lbl = self._locked_lbls[self._selected_cam_index]
         if has_password:

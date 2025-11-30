@@ -12,9 +12,9 @@ from manager.sensor_manager import SensorManager
 
 class SafeHomeModePage(InterfacePage):
     """
-    [메인 페이지] 모드 관리 화면
-    - SecurityPage와 동일한 Grid 레이아웃 적용
-    - SensorManager의 상태를 주기적으로 감지하여 UI 자동 갱신
+    [Main page] Mode management screen
+    - Apply the same Grid layout as SecurityPage
+    - Periodically monitor the state of SensorManager to auto-update the UI
     """
 
     def __init__(
@@ -33,24 +33,24 @@ class SafeHomeModePage(InterfacePage):
         self.mode_buttons: Dict[str, ctk.CTkButton] = {}
 
         self.draw_page()
-        # 주기적 상태 감지를 시작
+        # Start periodic state monitoring
         self._start_monitoring()
 
     def _get_current_matching_mode(self):
         """
-        현재 SensorManager의 센서 상태를 확인하여,
-        일치하는 모드가 있는지 확인하고 이름을 반환합니다.
+        Check the current state of sensors in SensorManager,
+        Check if there is a matching mode and return its name.
         """
         if not self.sensor_manager:
             return None
 
-        # 현재 켜져있는(Armed) 센서들의 ID 집합 구하기
+        # Get the set of currently armed sensors' IDs
         current_armed_ids = set()
         for sid, sensor in self.sensor_manager.sensor_dict.items():
             if sensor.is_armed():
                 current_armed_ids.add(sid)
 
-        # 정의된 모드들과 비교
+        # Compare with defined modes
         modes = self.configuration_manager.get_all_safehome_modes()
         for mode in modes.values():
             mode_name = mode.mode_name
@@ -61,28 +61,28 @@ class SafeHomeModePage(InterfacePage):
         return None
 
     def draw_page(self):
-        # 기존 위젯 제거
+        # Remove existing widgets
         for widget in self.winfo_children():
             widget.destroy()
 
         self.mode_buttons.clear()
 
-        # Grid 구성
+        # Configure Grid layout
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0, minsize=600)
         self.grid_rowconfigure(0, weight=1)
 
-        # ===== 좌측 패널 (Controls) =====
+        # ===== Left Panel (Controls) =====
         self.left_panel = ctk.CTkFrame(self, fg_color="transparent")
         self.left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-        # 중앙 정렬을 위한 컨테이너
+        # Container for center alignment
         control_container = ctk.CTkFrame(
             self.left_panel, fg_color="transparent"
         )
         control_container.place(relx=0.5, rely=0.5, anchor="center")
 
-        # 1. 모드 적용 버튼들 생성
+        # 1. Create mode apply buttons
         if self.configuration_manager:
             modes = self.configuration_manager.get_all_safehome_modes()
             ctk.CTkLabel(
@@ -109,12 +109,12 @@ class SafeHomeModePage(InterfacePage):
                 btn.pack(pady=5)
                 self.mode_buttons[mode_name] = btn
 
-            # 구분선
+            # Separator
             ctk.CTkFrame(
                 control_container, height=2, fg_color="gray80", width=200
             ).pack(pady=20)
 
-        # 2. 설정 변경 버튼
+        # 2. Settings change button
         ctk.CTkButton(
             control_container,
             text="Redefine Security Modes",
@@ -126,7 +126,7 @@ class SafeHomeModePage(InterfacePage):
             command=self.open_config_window,
         ).pack()
 
-        # ===== 우측 패널 (Floor Plan) =====
+        # ===== Right Panel (Floor Plan) =====
         self.right_panel = ctk.CTkFrame(self, corner_radius=10)
         self.right_panel.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
@@ -149,17 +149,18 @@ class SafeHomeModePage(InterfacePage):
 
     def _start_monitoring(self):
         """
-        주기적으로 센서 매니저의 상태를 확인하고 화면을 갱신합니다.
+        Periodically check the state of the sensor manager and update the UI.
         """
         if self.winfo_exists():
             self._update_ui_state()
             self.after(500, self._start_monitoring)
 
     def _update_ui_state(self):
-        """현재 센서 상태를 기반으로 버튼 색상과 캔버스 그림을 갱신"""
+        """Update button colors and canvas drawing
+        based on the current sensor state."""
         current_active_mode = self._get_current_matching_mode()
 
-        # 1. 버튼 상태 업데이트
+        # 1. Update button states
         for mode_name, btn in self.mode_buttons.items():
             if mode_name == current_active_mode:
                 btn.configure(
@@ -170,7 +171,7 @@ class SafeHomeModePage(InterfacePage):
                     fg_color="transparent", text_color="gray", border_width=2
                 )
 
-        # 2. 플로어 플랜 센서 업데이트
+        # 2. Update floor plan sensors
         self._render_content()
 
     def apply_mode(self, mode_name):
@@ -201,7 +202,7 @@ class SafeHomeModePage(InterfacePage):
 
     def _draw_sensors(self):
         """
-        SensorManager에 있는 센서들의 '실제 상태'를 기반으로 그립니다.
+        Draw sensors based on their actual state in SensorManager.
         """
         if not self.sensor_manager:
             return
@@ -210,23 +211,23 @@ class SafeHomeModePage(InterfacePage):
             x = sensor.coordinate_x
             y = sensor.coordinate_y
 
-            # Arm/Disarm 상태에 따라 색상 결정
+            # Determine color based on Arm/Disarm state
             if sensor.is_armed():
-                fill_color = "#E74C3C"  # 빨간색 (Armed)
+                fill_color = "#E74C3C"  # Red (Armed)
                 outline_color = "black"
                 line_width = 3
             else:
-                fill_color = "#B0BEC5"  # 회색 (Disarmed)
+                fill_color = "#B0BEC5"  # Gray (Disarmed)
                 outline_color = "gray60"
                 line_width = 2
 
-            # 센서 타입에 따라 다르게 그리기
+            # Draw differently based on sensor type
             if sensor.get_type() == SensorType.MOTION_DETECTOR_SENSOR:
-                # [수정] 모션 감지기는 선분으로 그리기
+                # [Modified] Draw motion detectors as line segments
                 x2 = getattr(sensor, "coordinate_x2", x)
                 y2 = getattr(sensor, "coordinate_y2", y)
 
-                # 선 그리기
+                # Draw line segment
                 self.canvas.create_line(
                     x,
                     y,
@@ -237,7 +238,7 @@ class SafeHomeModePage(InterfacePage):
                     tags="sensor",
                 )
 
-                # 양 끝점에 작은 점을 찍어 선의 끝을 명확히 함
+                # Draw small dots at both ends to mark the ends of the line
                 r = 3
                 self.canvas.create_oval(
                     x - r,
@@ -258,14 +259,14 @@ class SafeHomeModePage(InterfacePage):
                     tags="sensor",
                 )
 
-                # 텍스트 위치는 선분의 중간지점
+                # Text position is the midpoint of the line segment
                 text_x = (x + x2) / 2
                 text_y = (y + y2) / 2 - 10
                 anchor = "center"
                 sensor_text = f"M({sensor.sensor_id})"
 
             else:
-                # [유지] 창문/문 센서는 기존대로 원으로 그리기
+                # [Maintained] Draw window/door sensors as circles as before
                 self.canvas.create_oval(
                     x - 5,
                     y - 5,
