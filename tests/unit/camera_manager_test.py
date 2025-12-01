@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
 from manager.camera_manager import CameraManager
-from manager.storage_manager import StorageManager
 from database.schema.camera import CameraSchema, CameraControlType, CameraValidationResult
 
 @pytest.fixture

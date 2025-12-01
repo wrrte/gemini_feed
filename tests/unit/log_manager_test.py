@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch, mock_open
 import logging
-import os
 from manager.log_manager import LogManager, LogLevel
 from manager.storage_manager import StorageManager
 
