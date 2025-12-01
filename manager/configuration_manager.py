@@ -119,6 +119,9 @@ class ConfigurationManager:
             for zone in zones
         }
 
+        # Sync sensors to zones based on coordinates
+        self._sync_sensors_to_zones()
+
     # ==================== System settings ====================
 
     def get_system_setting(self) -> Optional[SystemSettings]:
@@ -385,9 +388,13 @@ class ConfigurationManager:
             self.sensor_manager.arm_sensor(sensor_id)
 
         # update zone and database
-        self._sync_zone_arm_state_with_sensors()
-        self._update_all_sensors_in_db()
-        self._update_all_zones_in_db()
+        try:
+            self._sync_zone_arm_state_with_sensors()
+            self._update_all_sensors_in_db()
+            self._update_all_zones_in_db()
+        except Exception as e:
+            print(f"Failed to arm safety zone {zone_id}: {e}")
+            return False
 
         return True
 
@@ -557,3 +564,95 @@ class ConfigurationManager:
                 zone.arm()
             else:
                 zone.disarm()
+
+    def _sync_sensors_to_zones(self) -> None:
+        """
+        Assign sensors to zones based on coordinates.
+        Supports both points (WinDoor) and lines (Motion).
+        """
+        if not self.sensor_manager:
+            return
+
+        for zone in self.safety_zones.values():
+            coords = zone.get_coordinates()
+            if not coords:
+                continue
+
+            rx1, ry1, rx2, ry2 = coords
+            sensors_in_zone = []
+
+            for sensor in self.sensor_manager.sensor_dict.values():
+                if self._is_sensor_in_rect(sensor, rx1, ry1, rx2, ry2):
+                    sensors_in_zone.append(sensor.sensor_id)
+
+            if sensors_in_zone:
+                zone.set_sensor_list(sensors_in_zone)
+
+    def _is_sensor_in_rect(
+        self, sensor, rx1: float, ry1: float, rx2: float, ry2: float
+    ) -> bool:
+        """
+        Check if a sensor is inside or intersecting with a rectangle.
+        """
+        sx, sy = sensor.coordinate_x, sensor.coordinate_y
+        min_x, max_x = min(rx1, rx2), max(rx1, rx2)
+        min_y, max_y = min(ry1, ry2), max(ry1, ry2)
+
+        # 1. WinDoor Sensor (Point)
+        if sensor.get_type() == SensorType.WINDOOR_SENSOR:
+            return min_x <= sx <= max_x and min_y <= sy <= max_y
+
+        # 2. Motion Detector (Line Segment)
+        elif sensor.get_type() == SensorType.MOTION_DETECTOR_SENSOR:
+            sx2 = getattr(sensor, "coordinate_x2", sx)
+            sy2 = getattr(sensor, "coordinate_y2", sy)
+
+            # Case A: One of the endpoints is inside the rectangle
+            p1_in = min_x <= sx <= max_x and min_y <= sy <= max_y
+            p2_in = min_x <= sx2 <= max_x and min_y <= sy2 <= max_y
+            if p1_in or p2_in:
+                return True
+
+            # Case B: The line passes through the rectangle
+            rect_lines = [
+                ((min_x, min_y), (max_x, min_y)),  # Top
+                ((max_x, min_y), (max_x, max_y)),  # Right
+                ((max_x, max_y), (min_x, max_y)),  # Bottom
+                ((min_x, max_y), (min_x, min_y)),  # Left
+            ]
+
+            sensor_p1 = (sx, sy)
+            sensor_p2 = (sx2, sy2)
+
+            for rp1, rp2 in rect_lines:
+                is_intersect = self._check_line_intersection(
+                    sensor_p1, sensor_p2, rp1, rp2
+                )
+                if is_intersect:
+                    return True
+
+            return False
+
+        return False
+
+    def _check_line_intersection(self, p1, p2, p3, p4) -> bool:
+        """
+        Check if line segment (p1-p2) intersects with (p3-p4).
+        """
+        x1, y1 = p1
+        x2, y2 = p2
+        x3, y3 = p3
+        x4, y4 = p4
+
+        denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
+        if denom == 0:
+            return False  # Parallel lines
+
+        ua_num = (x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)
+        ub_num = (x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)
+
+        ua = ua_num / denom
+        ub = ub_num / denom
+
+        # Intersection must occur within both line segments
+        return 0 <= ua <= 1 and 0 <= ub <= 1

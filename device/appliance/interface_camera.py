@@ -7,34 +7,34 @@ class InterfaceCamera(ABC):
     @abstractmethod
     def set_id(self, id_):
         """Set the camera ID and load associated image."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def get_id(self):
         """Get the camera ID."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def get_view(self):
         """Get the current camera view as an image (PIL Image in Python)."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def pan_right(self):
         """Pan camera to the right. Returns True if successful."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def pan_left(self):
         """Pan camera to the left. Returns True if successful."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def zoom_in(self):
         """Zoom in. Returns True if successful."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def zoom_out(self):
         """Zoom out. Returns True if successful."""
-        pass
+        pass  # pragma: no cover
