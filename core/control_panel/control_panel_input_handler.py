@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, List
 from constants import MAX_LOGIN_TRIALS, UI_UPDATE_DELAY_MS
 from core.control_panel.control_panel_state_manager import ControlPanelState
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from core.control_panel.control_panel import ControlPanel
 
 
@@ -261,20 +261,11 @@ class ControlPanelInputHandler:
 
                 if self.new_password_temp == confirm:
                     # TODO: Password change is not implemented yet
-                    success = True
-
-                    if success:
-                        self.parent.ui.set_display_messages(
-                            "Password changed!",
-                            "Successfully updated",
-                            login_prefix,
-                        )
-                    else:
-                        self.parent.ui.set_display_messages(
-                            "Failed to update",
-                            "Please try again",
-                            login_prefix,
-                        )
+                    self.parent.ui.set_display_messages(
+                        "Password changed!",
+                        "Successfully updated",
+                        login_prefix,
+                    )
                 else:
                     # Passwords don't match
                     self.parent.ui.set_display_messages(

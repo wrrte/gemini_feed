@@ -11,7 +11,7 @@ import customtkinter as ctk
 
 from constants import COLOR_ARMED
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from core.control_panel.control_panel import ControlPanel
 
 

@@ -49,6 +49,9 @@ class SystemSettings:
         """
         if not isinstance(phone_number, str):
             return False
+        # Check if phone number contains only digits, +, and -
+        if not all(c in "0123456789+-" for c in phone_number):
+            raise ValueError("Phone number must contain only 0~9, + and -")
         self.panic_phone_number = phone_number
         return True
 
@@ -74,6 +77,9 @@ class SystemSettings:
         """
         if not isinstance(phone_number, str):
             return False
+        # Check if phone number contains only digits, +, and -
+        if not all(c in "0123456789+-" for c in phone_number):
+            raise ValueError("Phone number must contain only 0~9, + and -")
         self.homeowner_phone_number = phone_number
         return True
 

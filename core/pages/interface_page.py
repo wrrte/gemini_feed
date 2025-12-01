@@ -17,7 +17,7 @@ class PageMixin(ABC):
         Draw the UI elements of the page.
         Must be implemented by child classes.
         """
-        pass
+        pass  # pragma: no cover
 
     def get_id(self) -> str:
         """Return the ID of the page."""

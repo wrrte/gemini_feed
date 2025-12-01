@@ -20,7 +20,7 @@ from constants import (
 
 # isort: on
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from core.control_panel.control_panel import ControlPanel
 
 
