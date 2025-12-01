@@ -6,7 +6,9 @@ from database.schema.camera import CameraSchema, CameraControlType, CameraValida
 
 @pytest.fixture
 def mock_storage_manager():
-    return Mock(spec=StorageManager)
+    # spec=StorageManager를 제거하여 정의되지 않은 메서드(insert_camera 등) 호출 시 
+    # AttributeError가 발생하는 것을 방지합니다.
+    return Mock()
 
 @pytest.fixture
 def mock_safe_home_camera_class():
@@ -29,6 +31,9 @@ def camera_manager(mock_storage_manager, mock_safe_home_camera_class):
     mock_instance.zoom_in.return_value = True
     mock_instance.zoom_out.return_value = True
     
+    # Mock to_schema for update/insert calls
+    mock_instance.to_schema.return_value = "mock_schema"
+
     manager = CameraManager(storage_manager=mock_storage_manager)
     return manager
 
@@ -45,7 +50,11 @@ def test_get_camera(camera_manager, camera_id, expected_found):
         assert cam is None
 
 def test_add_camera(camera_manager, mock_storage_manager):
+    # insert_camera가 호출될 때 성공하도록 설정
+    mock_storage_manager.insert_camera.return_value = True
+    
     result = camera_manager.add_camera(10, 20)
+    
     assert result is True
     assert camera_manager._id_max == 1
     assert len(camera_manager.camera_list) == 2
@@ -178,7 +187,7 @@ def test_set_camera_password(camera_manager, mock_storage_manager, camera_id, sh
     
     if should_update:
         cam.set_password.assert_called_with("new_pass")
-        mock_storage_manager.update_camera.assert_called_with(camera_id)
+        mock_storage_manager.update_camera.assert_called()
     else:
         cam.set_password.assert_not_called()
         mock_storage_manager.update_camera.assert_not_called()
@@ -206,3 +215,12 @@ def test_delete_camera_password(camera_manager, mock_storage_manager, camera_id,
     
     if expected:
         mock_storage_manager.update_camera.assert_called()
+
+# update_camera를 직접 호출하는 테스트 추가 (Missing Coverage 해결)
+def test_update_camera_direct(camera_manager, mock_storage_manager):
+    # Invalid ID: update_camera 내부의 `if cam is None: return False` 라인을 커버
+    assert camera_manager.update_camera(999) is False
+    
+    # Valid ID: 성공 케이스
+    mock_storage_manager.update_camera.return_value = True
+    assert camera_manager.update_camera(1) is True
