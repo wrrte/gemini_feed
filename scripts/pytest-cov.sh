@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Run pytest with coverage
-pytest --cov
+uv run pytest --cov
 
 # Generate coverage report
-coverage html
+uv run coverage html

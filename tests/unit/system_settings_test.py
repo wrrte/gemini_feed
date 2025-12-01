@@ -56,6 +56,17 @@ def test_system_settings_set_panic_phone_number_invalid_type():
     )  # Should remain unchanged
 
 
+def test_system_settings_set_panic_phone_number_invalid_chars():
+    """Test setting panic phone number with invalid characters"""
+    settings = SystemSettings(system_setting_id=1, panic_phone_number="911")
+
+    with pytest.raises(ValueError) as exc_info:
+        settings.set_panic_phone_number("555-HELP")
+
+    assert str(exc_info.value) == "Phone number must contain only 0~9, + and -"
+    assert settings.get_panic_phone_number() == "911"  # unchanged
+
+
 def test_system_settings_get_panic_phone_number():
     """Test getting panic phone number"""
     settings = SystemSettings(system_setting_id=1, panic_phone_number="112")
@@ -87,6 +98,20 @@ def test_system_settings_set_homeowner_phone_number_invalid_type():
 
     result = settings.set_homeowner_phone_number(5551234)
     assert result is False
+    assert settings.get_homeowner_phone_number() == "555-0000"
+
+
+def test_system_settings_set_homeowner_phone_number_invalid_chars():
+    """Test setting homeowner phone number with invalid characters"""
+    settings = SystemSettings(
+        system_setting_id=1, homeowner_phone_number="555-0000"
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        settings.set_homeowner_phone_number("(123) 456-7890")
+
+    msg = "Phone number must contain only 0~9, + and -"
+    assert str(exc_info.value) == msg
     assert settings.get_homeowner_phone_number() == "555-0000"
 
 

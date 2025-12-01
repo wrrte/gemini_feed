@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from unittest.mock import Mock, patch
 
@@ -161,14 +162,19 @@ def test_monitor_loop_exception(sensor_manager):
     mock_log_manager = Mock()
     sensor_manager.log_manager = mock_log_manager
 
-    with patch.object(sensor_manager,
-                      '_check_all_sensors',
-                      side_effect=Exception("Test Loop Error")), \
-            patch("time.sleep",
-                  side_effect=lambda x: setattr(
-                      sensor_manager,
-                      '_monitoring_active', False)):
-
+    with (
+        patch.object(
+            sensor_manager,
+            "_check_all_sensors",
+            side_effect=Exception("Test Loop Error"),
+        ),
+        patch(
+            "time.sleep",
+            side_effect=lambda x: setattr(
+                sensor_manager, "_monitoring_active", False
+            ),
+        ),
+    ):
         sensor_manager._monitor_sensors_loop()
 
     mock_log_manager.error.assert_called()
@@ -186,3 +192,43 @@ def test_check_all_sensors_no_trigger(sensor_manager, mock_sensor):
     mock_sensor.read.return_value = False
     sensor_manager._check_all_sensors()
     sensor_manager.handle_intrusion.assert_not_called()
+
+
+def test_monitor_loop_exception_with_sleep(sensor_manager):
+    """Test that monitor loop sleeps after exception (covers line 268)."""
+    sensor_manager._monitoring_active = True
+    mock_log_manager = Mock()
+    sensor_manager.log_manager = mock_log_manager
+
+    call_count = [0]
+
+    def check_sensors_error():
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise Exception("Test Error")
+        # On second call, stop monitoring to exit loop
+        sensor_manager._monitoring_active = False
+
+    sleep_calls = []
+    _ = time.sleep
+
+    def track_sleep(duration):
+        sleep_calls.append(duration)
+        # Stop monitoring after second sleep to exit the loop
+        if len(sleep_calls) >= 2:
+            sensor_manager._monitoring_active = False
+
+    with (
+        patch.object(
+            sensor_manager,
+            "_check_all_sensors",
+            side_effect=check_sensors_error,
+        ),
+        patch("time.sleep", side_effect=track_sleep),
+    ):
+        sensor_manager._monitor_sensors_loop()
+
+    # Verify that sleep was called in the exception handler (line 268)
+    assert len(sleep_calls) >= 1
+    assert sleep_calls[0] == sensor_manager._monitor_interval
+    mock_log_manager.error.assert_called()

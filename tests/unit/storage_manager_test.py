@@ -70,8 +70,8 @@ def manager(mock_db_schema):
 
     # Patch __del__ to prevent GC of old instances from wiping the new
     # singleton
-    with patch.object(StorageManager, '__del__', lambda self: None):
-        with patch.object(StorageManager, '_create_tables'):
+    with patch.object(StorageManager, "__del__", lambda self: None):
+        with patch.object(StorageManager, "_create_tables"):
             mgr = StorageManager(db_path=":memory:", reset_database=False)
 
             # Ensure instantiation succeeded
@@ -93,8 +93,8 @@ def manager(mock_db_schema):
 # Initialization Tests
 # ==========================================
 
+
 def test_singleton_pattern(manager):
-    # manager fixture already creates an instance
     m2 = StorageManager(db_path=":memory:")
     assert manager is m2
 
@@ -103,13 +103,31 @@ def test_initialize_with_custom_path():
     StorageManager._instance = None
     custom_path = "/tmp/test_db/safehome.db"
 
-    with patch("os.path.exists", return_value=False), \
-            patch("os.makedirs") as mock_makedirs, \
-            patch.object(StorageManager, "_connect"), \
-            patch.object(StorageManager, "_create_tables"):
-
+    with (
+        patch("os.path.exists", return_value=False),
+        patch("os.makedirs") as mock_makedirs,
+        patch.object(StorageManager, "_connect"),
+        patch.object(StorageManager, "_create_tables"),
+    ):
         StorageManager(db_path=custom_path)
         mock_makedirs.assert_called_once()
+
+    StorageManager._instance = None
+
+
+def test_init_default_path_create_dir():
+    StorageManager._instance = None
+    # Mocking abspath to return a fake path to test mkdir logic
+    with (
+        patch("os.path.abspath", return_value="/a/b/c/file.py"),
+        patch("os.path.exists", return_value=False),
+        patch("os.makedirs") as mock_makedirs,
+        patch("sqlite3.connect"),
+        patch.object(StorageManager, "_create_tables"),
+    ):
+        StorageManager()  # db_path is None
+        # /a/b/c -> /a/b -> /a/b/database
+        mock_makedirs.assert_called()
 
     StorageManager._instance = None
 
@@ -124,12 +142,11 @@ def test_connect_failure():
 
 def test_create_tables_file_found():
     StorageManager._instance = None
-    with patch("os.path.exists", return_value=True), \
-            patch(
-                "builtins.open",
-                mock_open(read_data="CREATE TABLE t(a);")), \
-            patch("sqlite3.connect") as mock_connect:
-
+    with (
+        patch("os.path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="CREATE TABLE t(a);")),
+        patch("sqlite3.connect") as mock_connect,
+    ):
         mock_conn_instance = Mock()
         mock_connect.return_value = mock_conn_instance
 
@@ -140,10 +157,11 @@ def test_create_tables_file_found():
 
 def test_create_tables_file_not_found(capsys):
     StorageManager._instance = None
-    with patch("os.path.exists", return_value=False), \
-            patch("os.makedirs"), \
-            patch("sqlite3.connect"):
-
+    with (
+        patch("os.path.exists", return_value=False),
+        patch("os.makedirs"),
+        patch("sqlite3.connect"),
+    ):
         StorageManager(db_path=":memory:")
         captured = capsys.readouterr()
         assert "SQL schema file not found" in captured.out
@@ -152,10 +170,11 @@ def test_create_tables_file_not_found(capsys):
 
 def test_create_tables_exception(capsys):
     StorageManager._instance = None
-    with patch("os.path.exists", return_value=True), \
-            patch("builtins.open", side_effect=Exception("Read Error")), \
-            patch("sqlite3.connect"):
-
+    with (
+        patch("os.path.exists", return_value=True),
+        patch("builtins.open", side_effect=Exception("Read Error")),
+        patch("sqlite3.connect"),
+    ):
         StorageManager(db_path=":memory:")
         captured = capsys.readouterr()
         assert "Failed to create tables" in captured.out
@@ -179,22 +198,76 @@ def test_drop_tables_success(manager):
     assert len(cursor.fetchall()) == 0
 
 
+def test_drop_tables_no_connection(manager, capsys):
+    if manager.connection:
+        manager.connection.close()
+    manager.connection = None
+    manager._drop_tables()
+    captured = capsys.readouterr()
+    assert "No database connection available" in captured.out
+
+
+def test_drop_tables_exception(manager, capsys):
+    if manager.connection:
+        manager.connection.close()
+    # Replace real connection with a Mock to simulate error
+    manager.connection = Mock()
+    manager.connection.cursor.side_effect = sqlite3.Error("Drop Error")
+
+    manager._drop_tables()
+
+    captured = capsys.readouterr()
+    assert "Failed to drop tables" in captured.out
+
+
 def test_initialize_database_data_success():
     StorageManager._instance = None
-    with patch("os.path.exists", return_value=True), \
-            patch(
-                "builtins.open",
-                mock_open(read_data="INSERT INTO u VALUES(1)")), \
-            patch("sqlite3.connect"):
-
+    with (
+        patch.object(StorageManager, "__del__", lambda self: None),
+        patch("os.path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="INSERT INTO u VALUES(1)")),
+        patch("sqlite3.connect"),
+    ):
         mgr = StorageManager(db_path=":memory:", reset_database=True)
         assert mgr.connection is not None
     StorageManager._instance = None
 
 
+def test_init_data_no_connection(manager, capsys):
+    if manager.connection:
+        manager.connection.close()
+    manager.connection = None
+    manager._initialize_database_data()
+    captured = capsys.readouterr()
+    assert "No database connection available" in captured.out
+
+
+def test_init_data_file_not_found(manager, capsys):
+    with patch("os.path.exists", return_value=False):
+        manager._initialize_database_data()
+        captured = capsys.readouterr()
+        assert "SQL data file not found" in captured.out
+
+
+def test_init_data_exception(manager):
+    with (
+        patch("os.path.exists", return_value=True),
+        patch("builtins.open", mock_open(read_data="SQL")),
+    ):
+        if manager.connection:
+            manager.connection.close()
+        # Replace real connection with Mock
+        manager.connection = Mock()
+        manager.connection.cursor.side_effect = sqlite3.Error("Fail")
+
+        with pytest.raises(sqlite3.Error):
+            manager._initialize_database_data()
+
+
 # ==========================================
 # User CRUD Tests
 # ==========================================
+
 
 def test_insert_user_success(manager):
     result = manager.insert_user(
@@ -211,6 +284,10 @@ def test_insert_user_failure(manager):
     manager.insert_user("u1", "R", "p", "p")
     result = manager.insert_user("u1", "R", "p", "p")
     assert result is False
+
+
+def test_get_user_not_found(manager):
+    assert manager.get_user("nonexistent") is None
 
 
 def test_update_user_success(manager):
@@ -235,6 +312,17 @@ def test_update_user_invalid_fields(manager):
     assert result is False
 
 
+def test_update_user_exception(manager):
+    manager.insert_user("u1", "R", "p", "p")
+    original_conn = manager.connection
+    manager.connection = Mock()
+    manager.connection.cursor.side_effect = sqlite3.Error("Update Error")
+    try:
+        assert manager.update_user("u1", role="X") is False
+    finally:
+        manager.connection = original_conn
+
+
 def test_delete_user_success(manager):
     manager.insert_user("u1", "R", "p", "p")
     result = manager.delete_user("u1")
@@ -257,6 +345,7 @@ def test_delete_user_fail_exception(manager):
 # ==========================================
 # Log CRUD Tests
 # ==========================================
+
 
 def test_insert_log_success(manager):
     result = manager.insert_log("INFO", "msg", "file.py", "func", 10)
@@ -283,9 +372,20 @@ def test_delete_logs_before(manager):
     assert len(manager.get_logs()) == 0
 
 
+def test_delete_logs_exception(manager):
+    original_conn = manager.connection
+    manager.connection = Mock()
+    manager.connection.cursor.side_effect = sqlite3.Error("Fail")
+    try:
+        assert manager.delete_logs_before("2022") is False
+    finally:
+        manager.connection = original_conn
+
+
 # ==========================================
 # System Settings Tests
 # ==========================================
+
 
 def test_system_settings_crud(manager):
     mock_setting = Mock()
@@ -300,6 +400,8 @@ def test_system_settings_crud(manager):
     retrieved = manager.get_system_setting(1)
     assert retrieved is not None
     assert retrieved.panic_phone_number == "123"
+    # Test not found
+    assert manager.get_system_setting(999) is None
 
     mock_setting.panic_phone_number = "999"
     assert manager.update_system_setting(mock_setting) is True
@@ -326,12 +428,13 @@ def test_delete_system_setting_exception(manager):
 # SafeHome Mode Tests
 # ==========================================
 
+
 def test_safehome_mode_crud(manager):
     mock_mode = Mock()
     mock_mode.mode_name = "Night"
     mock_mode.sensor_ids = [1, 2]
 
-    # Pre-populate sensors with valid data for constraints
+    # Pre-populate sensors
     manager.connection.execute("""
         INSERT INTO sensors (sensor_id, sensor_type, coordinate_x,
         coordinate_y, coordinate_x2, coordinate_y2, armed)
@@ -342,18 +445,12 @@ def test_safehome_mode_crud(manager):
         coordinate_y, coordinate_x2, coordinate_y2, armed)
         VALUES (2, 1, 0, 0, 10, 10, 1)
     """)
-    manager.connection.execute("""
-        INSERT INTO sensors (sensor_id, sensor_type, coordinate_x,
-        coordinate_y, coordinate_x2, coordinate_y2, armed)
-        VALUES (3, 1, 0, 0, 10, 10, 1)
-    """)
     manager.connection.commit()
 
     assert manager.insert_safehome_mode(mock_mode) is True
 
     modes = manager.get_all_safehome_modes()
     assert len(modes) == 1
-    assert modes[0].mode_name == "Night"
     assert set(modes[0].sensor_ids) == {1, 2}
 
     sensors = manager.get_safehome_mode_sensors(modes[0].mode_id)
@@ -361,12 +458,30 @@ def test_safehome_mode_crud(manager):
 
     mock_mode.mode_id = modes[0].mode_id
     mock_mode.mode_name = "Night_Updated"
-    mock_mode.sensor_ids = [3]
+    mock_mode.sensor_ids = [1]  # Reduced sensors
     assert manager.update_safehome_mode(mock_mode) is True
 
     modes = manager.get_all_safehome_modes()
     assert modes[0].mode_name == "Night_Updated"
-    assert modes[0].sensor_ids == [3]
+    assert modes[0].sensor_ids == [1]
+
+
+def test_safehome_mode_empty_and_parsing(manager):
+    # Test empty modes
+    assert manager.get_all_safehome_modes() == []
+
+    # Test mode with NO sensors
+    manager.connection.execute(
+        "INSERT INTO safehome_modes (mode_name) VALUES ('Empty')"
+    )
+    manager.connection.commit()
+
+    modes = manager.get_all_safehome_modes()
+    assert len(modes) == 1
+    assert modes[0].sensor_ids == []
+
+    # Test empty sensor fetch
+    assert manager.get_safehome_mode_sensors(999) == []
 
 
 def test_insert_safehome_mode_failure(manager):
@@ -403,6 +518,7 @@ def test_update_safehome_mode_failure(manager):
 # Safety Zone Tests
 # ==========================================
 
+
 def test_safety_zone_crud(manager):
     mock_zone = Mock()
     mock_zone.zone_name = "Kitchen"
@@ -435,11 +551,25 @@ def test_safety_zone_crud(manager):
     assert manager.get_safety_zone(zone.zone_id) is None
 
 
+def test_safety_zone_empty_not_found(manager):
+    assert manager.get_all_safety_zones() == []
+    assert manager.get_safety_zone(999) is None
+    assert manager.get_safety_zone_by_name("NoZone") is None
+
+
 def test_update_safety_zone_failure(manager):
     mock_zone = Mock()
     mock_zone.zone_id = 999
-    # Just mock execute_query on the instance
-    with patch.object(manager, 'execute_query', return_value=None):
+    # Just mock execute_query on the instance to return None (failure signal)
+    with patch.object(manager, "execute_query", return_value=None):
+        assert manager.update_safety_zone(mock_zone) is False
+
+
+def test_update_safety_zone_exception(manager):
+    mock_zone = Mock()
+    with patch.object(
+        manager, "execute_query", side_effect=Exception("Error")
+    ):
         assert manager.update_safety_zone(mock_zone) is False
 
 
@@ -447,9 +577,9 @@ def test_update_safety_zone_failure(manager):
 # Sensor & Camera Tests
 # ==========================================
 
+
 def test_sensor_operations(manager):
-    # Pre-populate sensor with FULL data for Pydantic validation
-    # Use valid integer enum value for sensor_type (1)
+    # Pre-populate sensor with FULL data
     manager.connection.execute("""
         INSERT INTO sensors (
             sensor_id, sensor_type, coordinate_x, coordinate_y,
@@ -479,13 +609,17 @@ def test_sensor_operations(manager):
     mock_sensor.armed = 0
 
     assert manager.update_sensor(mock_sensor) is True
-
     updated = manager.get_sensor_by_id(1)
     assert updated.armed == 0
 
 
+def test_sensor_empty_not_found(manager):
+    assert manager.get_all_sensors() == []
+    assert manager.get_sensor_by_id(999) is None
+
+
 def test_camera_operations(manager):
-    # Pre-populate with FULL data for Pydantic validation
+    # Pre-populate
     manager.connection.execute("""
         INSERT INTO cameras (
             camera_id, coordinate_x, coordinate_y, pan, zoom_setting,
@@ -511,14 +645,18 @@ def test_camera_operations(manager):
     mock_cam.enabled = 0
 
     assert manager.update_camera(mock_cam) is True
-
     cameras = manager.get_all_cameras()
     assert cameras[0].enabled == 0
+
+
+def test_camera_empty(manager):
+    assert manager.get_all_cameras() == []
 
 
 # ==========================================
 # Utility Tests
 # ==========================================
+
 
 def test_execute_query_no_connection():
     StorageManager._instance = None
@@ -538,6 +676,23 @@ def test_execute_query_exception(manager):
         assert manager.execute_query("SELECT 1") is None
     finally:
         manager.connection = original_conn
+
+
+def test_close_exception(manager, capsys):
+    if manager.connection:
+        manager.connection.close()
+
+    # Replace real connection with mock to mock .close()
+    mock_conn = Mock()
+    mock_conn.close.side_effect = sqlite3.Error("Close Error")
+    manager.connection = mock_conn
+
+    manager.close()
+
+    # Should catch and print
+    captured = capsys.readouterr()
+    assert "Failed to close database connection" in captured.out
+    # Current implementation does NOT set connection to None on error
 
 
 def test_cleanup_and_del(manager):

@@ -29,7 +29,7 @@ def config_manager(mock_storage_manager, mock_sensor_manager):
         "panic_phone_number": "111",
         "homeowner_phone_number": "222",
         "system_lock_time": 1,
-        "alarm_delay_time": 1
+        "alarm_delay_time": 1,
     }
     mock_storage_manager.get_system_setting.return_value = mock_settings
     mock_storage_manager.get_all_safehome_modes.return_value = []
@@ -37,16 +37,21 @@ def config_manager(mock_storage_manager, mock_sensor_manager):
 
     return ConfigurationManager(
         storage_manager=mock_storage_manager,
-        sensor_manager=mock_sensor_manager)
+        sensor_manager=mock_sensor_manager,
+    )
 
 
 def test_init_loads_data(mock_storage_manager, mock_sensor_manager):
     # Setup data to ensure loop bodies in _load methods are executed
     mock_mode_schema = Mock()
     mock_mode_schema.model_dump.return_value = {
-        "mode_id": 1, "mode_name": "TestMode", "sensor_ids": []}
+        "mode_id": 1,
+        "mode_name": "TestMode",
+        "sensor_ids": [],
+    }
     mock_storage_manager.get_all_safehome_modes.return_value = [
-        mock_mode_schema]
+        mock_mode_schema
+    ]
 
     mock_zone_schema = Mock()
     mock_zone_schema.zone_id = 1
@@ -62,15 +67,18 @@ def test_init_loads_data(mock_storage_manager, mock_sensor_manager):
     # Setup settings to avoid error log in this test
     mock_settings = Mock()
     mock_settings.model_dump.return_value = {
-        "system_setting_id": 1, "panic_phone_number": "1",
+        "system_setting_id": 1,
+        "panic_phone_number": "1",
         "homeowner_phone_number": "2",
-        "system_lock_time": 1, "alarm_delay_time": 1
+        "system_lock_time": 1,
+        "alarm_delay_time": 1,
     }
     mock_storage_manager.get_system_setting.return_value = mock_settings
 
     cm = ConfigurationManager(
         storage_manager=mock_storage_manager,
-        sensor_manager=mock_sensor_manager)
+        sensor_manager=mock_sensor_manager,
+    )
 
     # Check if loaded into dicts
     assert 1 in cm.safehome_modes
@@ -80,32 +88,35 @@ def test_init_loads_data(mock_storage_manager, mock_sensor_manager):
 
 
 def test_init_exception(mock_storage_manager, mock_sensor_manager):
-    mock_storage_manager.get_system_setting.side_effect = Exception(
-        "DB Error")
+    mock_storage_manager.get_system_setting.side_effect = Exception("DB Error")
     mock_storage_manager.get_all_safehome_modes.return_value = []
     mock_storage_manager.get_all_safety_zones.return_value = []
 
     cm = ConfigurationManager(
         storage_manager=mock_storage_manager,
-        sensor_manager=mock_sensor_manager)
+        sensor_manager=mock_sensor_manager,
+    )
     assert cm.system_settings is None
 
 
 def test_load_system_settings_not_found(
-        mock_storage_manager, mock_sensor_manager):
+    mock_storage_manager, mock_sensor_manager
+):
     mock_storage_manager.get_system_setting.return_value = None
     mock_storage_manager.get_all_safehome_modes.return_value = []
     mock_storage_manager.get_all_safety_zones.return_value = []
 
     cm = ConfigurationManager(
         storage_manager=mock_storage_manager,
-        sensor_manager=mock_sensor_manager)
+        sensor_manager=mock_sensor_manager,
+    )
     assert cm.system_settings is None
 
 
 def test_get_system_setting(config_manager):
-    assert config_manager.get_system_setting(
-    ) == config_manager.system_settings
+    assert (
+        config_manager.get_system_setting() == config_manager.system_settings
+    )
 
 
 def test_update_system_setting(config_manager, mock_storage_manager):
@@ -115,7 +126,7 @@ def test_update_system_setting(config_manager, mock_storage_manager):
         "panic_phone_number": "000",
         "homeowner_phone_number": "000",
         "system_lock_time": 5,
-        "alarm_delay_time": 5
+        "alarm_delay_time": 5,
     }
     mock_storage_manager.update_system_setting.return_value = True
 
@@ -123,9 +134,10 @@ def test_update_system_setting(config_manager, mock_storage_manager):
     mock_storage_manager.update_system_setting.assert_called_with(schema)
 
 
-def test_update_system_setting_fail(config_manager, mock_storage_manager):
+def test_update_system_setting_fail(config_manager):
     schema = Mock(spec=SystemSettingSchema)
-    mock_storage_manager.update_system_setting.return_value = False
+    schema.system_setting_id = 1
+    config_manager.storage_manager.update_system_setting.return_value = False
     assert config_manager.update_system_setting(schema) is False
 
 
@@ -158,7 +170,7 @@ def test_update_safehome_mode(config_manager, mock_storage_manager):
     schema.model_dump.return_value = {
         "mode_id": 1,
         "mode_name": "Updated",
-        "sensor_ids": [1, 2]
+        "sensor_ids": [1, 2],
     }
     mock_storage_manager.update_safehome_mode.return_value = True
 
@@ -197,8 +209,9 @@ def test_change_to_safehome_mode_not_found(config_manager):
     assert config_manager.change_to_safehome_mode("Invalid") is False
 
 
-@pytest.mark.parametrize("zone_id, found",
-                         [(1, True), (999, False), ("invalid", False)])
+@pytest.mark.parametrize(
+    "zone_id, found", [(1, True), (999, False), ("invalid", False)]
+)
 def test_get_safety_zone(config_manager, zone_id, found):
     mock_zone = Mock()
     config_manager.safety_zones[1] = mock_zone
@@ -219,10 +232,12 @@ def test_update_safety_zone_methods(config_manager, mock_storage_manager):
     updated_zone_mock.model_dump.return_value = {
         "zone_id": 1,
         "zone_name": "Updated",
-        "coordinate_x1": 0, "coordinate_y1": 0,
-        "coordinate_x2": 10, "coordinate_y2": 10,
+        "coordinate_x1": 0,
+        "coordinate_y1": 0,
+        "coordinate_x2": 10,
+        "coordinate_y2": 10,
         "sensor_id_list": [],
-        "arm_status": False
+        "arm_status": False,
     }
 
     mock_storage_manager.update_safety_zone.return_value = True
@@ -257,10 +272,12 @@ def test_add_safety_zone(config_manager, mock_storage_manager):
     new_zone_mock.model_dump.return_value = {
         "zone_id": 2,
         "zone_name": "New Zone",
-        "coordinate_x1": 0, "coordinate_y1": 0,
-        "coordinate_x2": 10, "coordinate_y2": 10,
+        "coordinate_x1": 0,
+        "coordinate_y1": 0,
+        "coordinate_x2": 10,
+        "coordinate_y2": 10,
         "sensor_id_list": [],
-        "arm_status": False
+        "arm_status": False,
     }
 
     mock_storage_manager.insert_safety_zone.return_value = True
@@ -303,7 +320,8 @@ def test_delete_safety_zone_not_in_cache(config_manager, mock_storage_manager):
 
 
 def test_arm_disarm_safety_zone(
-        config_manager, mock_sensor_manager, mock_storage_manager):
+    config_manager, mock_sensor_manager, mock_storage_manager
+):
     mock_zone = Mock()
     mock_zone.get_sensor_list.return_value = [1]
     mock_zone.to_schema.return_value = Mock()
@@ -343,7 +361,9 @@ def test_disarm_sensor_in_zone_complex(config_manager, mock_sensor_manager):
     sensor2.is_armed.return_value = True
 
     mock_sensor_manager.get_sensor.side_effect = lambda id: {
-        1: sensor1, 2: sensor2}.get(id)
+        1: sensor1,
+        2: sensor2,
+    }.get(id)
     mock_sensor_manager.sensor_dict = {1: sensor1, 2: sensor2}
 
     config_manager._disarm_sensor_in_zone(1, 1)
@@ -370,40 +390,66 @@ def test_zone_has_other_armed_sensors(config_manager, mock_sensor_manager):
     # Sensor 3 is missing from dict
     mock_sensor_manager.sensor_dict = {1: sensor1, 2: sensor2}
 
-    assert config_manager._zone_has_other_armed_sensors(
-        zone, exclude_sensor_id=2) is True
-    assert config_manager._zone_has_other_armed_sensors(
-        zone, exclude_sensor_id=1) is False
+    assert (
+        config_manager._zone_has_other_armed_sensors(zone, exclude_sensor_id=2)
+        is True
+    )
+    assert (
+        config_manager._zone_has_other_armed_sensors(zone, exclude_sensor_id=1)
+        is False
+    )
     assert config_manager._zone_has_other_armed_sensors(zone) is True
 
 
 def test_missing_sensor_manager_ops(mock_storage_manager):
     # Setup mocks to return empty lists for init to avoid TypeError
     mock_storage_manager.get_system_setting.return_value = Mock(
-        model_dump=lambda: {})
+        model_dump=lambda: {}
+    )
     mock_storage_manager.get_all_safehome_modes.return_value = []
     mock_storage_manager.get_all_safety_zones.return_value = []
 
     # Test internal methods that guard against missing sensor_manager
     cm = ConfigurationManager(
-        storage_manager=mock_storage_manager,
-        sensor_manager=None)
+        storage_manager=mock_storage_manager, sensor_manager=None
+    )
 
     # Should simply return without error
     cm._update_all_sensors_in_db()
     cm._sync_zone_arm_state_with_sensors()
 
 
-@pytest.mark.parametrize("new_coords, new_id, expected_overlap", [
-    ((5, 5, 15, 15), 2, True),
-    ((0, 0, 10, 10), 1, False),
-    ((-20, 0, -10, 10), 2, False),
-    ((20, 0, 30, 10), 2, False),
-    ((0, -20, 10, -10), 2, False),
-    ((0, 20, 10, 30), 2, False)
-])
+def test_sync_zone_arm_state_disarms_zone(config_manager, mock_sensor_manager):
+    """Test _sync_zone_arm_state_with_sensors disarms unarmed zones."""
+    zone = Mock()
+    zone.get_sensor_list.return_value = [1]
+    config_manager.safety_zones[1] = zone
+
+    # All sensors in zone are disarmed
+    sensor = Mock()
+    sensor.is_armed.return_value = False
+    mock_sensor_manager.sensor_dict = {1: sensor}
+
+    config_manager._sync_zone_arm_state_with_sensors()
+
+    # Zone should be disarmed since no sensors are armed
+    zone.disarm.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "new_coords, new_id, expected_overlap",
+    [
+        ((5, 5, 15, 15), 2, True),
+        ((0, 0, 10, 10), 1, False),
+        ((-20, 0, -10, 10), 2, False),
+        ((20, 0, 30, 10), 2, False),
+        ((0, -20, 10, -10), 2, False),
+        ((0, 20, 10, 30), 2, False),
+    ],
+)
 def test_check_zone_is_overlap(
-        config_manager, new_coords, new_id, expected_overlap):
+    config_manager, new_coords, new_id, expected_overlap
+):
     existing_zone = Mock()
     existing_zone.zone_id = 1
     existing_zone.get_coordinates.return_value = (0, 0, 10, 10)
