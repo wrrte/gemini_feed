@@ -287,8 +287,25 @@ class ConfigurePage(InterfacePage):
                 print("No system settings found")
                 return
 
-            # Set the new value to the specific field
-            setattr(current_settings, field_name, new_value)
+            # Call the setter method instead of direct attribute assignment
+            # to ensure validation logic is executed
+            setter_method_name = getter_method.replace("get_", "set_")
+            setter_method = getattr(current_settings, setter_method_name, None)
+
+            if setter_method and callable(setter_method):
+                try:
+                    result = setter_method(new_value)
+                    if not result:
+                        print(
+                            f"Failed to set {field_name}: setter returns False"
+                        )
+                        return
+                except ValueError as e:
+                    print(f"Validation error for {field_name}: {e}")
+                    return
+            else:
+                # Fallback to direct assignment if setter doesn't exist
+                setattr(current_settings, field_name, new_value)
 
             # Update system settings in DB
             if not self.configuration_manager.update_system_setting(
