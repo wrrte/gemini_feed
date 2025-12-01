@@ -168,6 +168,8 @@ def test_display_view_locked(camera, mock_image_mod):
     camera.enable()
     camera.set_password("pass")  # This locks it
 
+    camera.display_view()
+
     # Should return black screen (new image)
     mock_image_mod.new.assert_called()
 
@@ -187,6 +189,8 @@ def test_display_view_success(camera, mock_image_mod, mock_image_draw):
     mock_draw_instance = Mock()
     mock_image_draw.Draw.return_value = mock_draw_instance
     mock_draw_instance.textbbox.return_value = (0, 0, 50, 20)
+
+    camera.display_view()
 
     # Verify image manipulation pipeline
     camera.image.crop.assert_called()
