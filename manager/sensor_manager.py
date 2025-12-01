@@ -284,7 +284,7 @@ class SensorManager:
                 self.handle_intrusion(sensor_id, sensor.get_type())
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sensor_manager = SensorManager()
     sensor_manager.arm_all_sensors()
     all_info = sensor_manager.get_all_sensor_info()
