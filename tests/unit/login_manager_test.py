@@ -101,7 +101,9 @@ def test_login_panel_guest(login_manager, mock_storage_manager):
     assert "IS NULL" in args[0]
 
 
-def test_validate_password_edge_cases(login_manager):
+def test_validate_password_edge_cases(login_manager, mock_storage_manager):
+    mock_storage_manager.execute_query.return_value = [{"user_id": "u1"}]
+
     # Panel Password
     assert login_manager.change_panel_password("1", "old", None) is False
     assert login_manager.change_panel_password("1", "old", 1234) is False
